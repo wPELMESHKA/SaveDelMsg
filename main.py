@@ -11,10 +11,16 @@ from config import (
     DELETED_MESSAGES_SHOWN,
     SHOW_USER_DELETED_MESSAGES,
 )
-from db import(
+from db_conns import(
     update_connections_data,
     load_connections
 )
+from db_msgs import(
+    save_msg
+)
+
+
+
 os.makedirs(HISTORY_DIR, exist_ok=True)
 
 bot = Bot(token=BOT_API_TOKEN)
@@ -27,7 +33,12 @@ logging.basicConfig(level=logging.INFO)
 async def on_business_connection(connection: BusinessConnection) -> None:
     conn = connection.id
     user = connection.user.id
-    update_connections_data(conn, user)
+    await update_connections_data(conn, user)
+
+
+@dp.business_message()
+async def on_business_message(message: Message) -> None:
+    await save_msg(message)
 
 
 async def main() -> None:
