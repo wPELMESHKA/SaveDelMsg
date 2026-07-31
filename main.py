@@ -8,8 +8,7 @@ from config import (
     BOT_API_TOKEN,
     HISTORY_DIR,
     CHANNELS_ARCHIVE_IDS,
-    DELETED_MESSAGES_SHOWN,
-    SHOW_USER_DELETED_MESSAGES,
+    DELETED_MESSAGES_SHOWN
 )
 from db_conns import(
     update_connections_data,
@@ -38,7 +37,7 @@ async def on_business_connection(connection: BusinessConnection) -> None:
 
 @dp.business_message()
 async def on_business_message(message: Message) -> None:
-    await save_msg(message)
+    await save_msg(message, bot)
 
 
 async def main() -> None:
