@@ -214,7 +214,7 @@ def _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id, partner_na
     data = load_data(userID, chat_id)
     data[str(msg_id)] = {
         "partner_name":     partner_name,
-        "channel_id":       CHANNELS_ARCHIVE_IDS[channel],
+        "channel_id":       saved_in_channel.chat.id,
         "channel_msg_id":   saved_in_channel.message_id,
         "text":             caption,
         "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
