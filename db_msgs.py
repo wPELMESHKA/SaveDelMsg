@@ -1,7 +1,9 @@
 from aiogram import Bot
 from aiogram.types import Message
+from html import escape
 import json
 import os
+from datetime import datetime, timezone
 from config import(
     HISTORY_DIR, 
     CHANNELS_ARCHIVE_IDS
@@ -27,6 +29,14 @@ async def save_msg(message: Message, bot: Bot):
     if userID is None:
         return
 
+    # когда в личку пишут от имени канала то message.from_user.id вообще не будет и код упадет 
+    if message.from_user:
+        if userID == str(message.from_user.id):
+            partner_name = None
+        else: 
+            partner_name = message.from_user.full_name
+    else:
+        partner_name = None
 
     # создаем папку если ее еще нету 
     os.makedirs(os.path.join(HISTORY_DIR, userID), exist_ok=True)
@@ -44,9 +54,11 @@ async def save_msg(message: Message, bot: Bot):
     if message.text:
         data = load_data(userID, chat_id)
         data[str(msg_id)] = {
+            "partner_name":     partner_name,
             "channel_id":       None,
             "channel_msg_id":   None,
-            "text":             message.text
+            "text":             escape(message.text),
+            "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
         }
         with open(os.path.join(HISTORY_DIR, userID, f"{chat_id}.json"), "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
@@ -55,9 +67,11 @@ async def save_msg(message: Message, bot: Bot):
     elif message.dice:
         data = load_data(userID, chat_id)
         data[str(msg_id)] = {
+                "partner_name":     partner_name,
                 "channel_id":       None,
                 "channel_msg_id":   None,
-                "text":             f"Интерактивный эмодзи: {message.dice.emoji} (Значение: {message.dice.value})"
+                "text":             f"Интерактивный эмодзи: {message.dice.emoji} (Значение: {message.dice.value})",
+                "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
             }
         with open(os.path.join(HISTORY_DIR, userID, f"{chat_id}.json"), "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=4)
@@ -66,6 +80,7 @@ async def save_msg(message: Message, bot: Bot):
     elif message.location:
         data = load_data(userID, chat_id)
         data[str(msg_id)] = {
+                "partner_name":     partner_name,
                 "channel_id":       None,
                 "channel_msg_id":   None,
                 "text": (
@@ -73,7 +88,8 @@ async def save_msg(message: Message, bot: Bot):
                     f"Координата Х (Долгота): {message.location.longitude}\n"
                     f"Координата Y (Широта): {message.location.latitude}\n"
                     f'<a href="https://maps.google.com/?q={message.location.latitude},{message.location.longitude}">Открыть на Google картах</a>'
-                )        
+                ),
+                "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")   
             }
         with open(os.path.join(HISTORY_DIR, userID, f"{chat_id}.json"), "w", encoding="utf-8") as f:
                             json.dump(data, f, ensure_ascii=False, indent=4)
@@ -83,15 +99,18 @@ async def save_msg(message: Message, bot: Bot):
     elif message.contact:
         data = load_data(userID, chat_id)
         text_contact = ( 
-            f"Имя контакта: {message.contact.full_name}\n"
-            f"Номер телефона контакта: {message.contact.phone_number}\n"
+            f"Имя контакта: {escape(message.contact.full_name)}\n"
+            f"Номер телефона контакта: {escape(message.contact.phone_number)}"
         )
-        if message.contact.user_id:
-            text_contact += f'<a href="tg://user?id={message.contact.user_id}">Открыть профиль в Telegram</a>'
         data[str(msg_id)] = {
+                "partner_name":     partner_name,
                 "channel_id":       None,
                 "channel_msg_id":   None,
-                "text":             text_contact
+                "text":(             
+                                    f"Имя контакта: {escape(message.contact.full_name)}\n"
+                                    f"Номер телефона контакта: {escape(message.contact.phone_number)}"
+                    ),
+                "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
             }
         with open(os.path.join(HISTORY_DIR, userID, f"{chat_id}.json"), "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
@@ -104,7 +123,7 @@ async def save_msg(message: Message, bot: Bot):
             photo=message.photo[-1].file_id, # Самое лучшее качество,
             caption=caption
         )
-        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id)
+        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id, partner_name)
 
     # 6. Видео
     elif message.video:
@@ -113,7 +132,7 @@ async def save_msg(message: Message, bot: Bot):
             video=message.video.file_id,
             caption=caption
         )
-        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id)
+        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id, partner_name)
 
     # 7. Голосовое сообщение (Voice)
     elif message.voice:
@@ -121,7 +140,7 @@ async def save_msg(message: Message, bot: Bot):
             chat_id=CHANNELS_ARCHIVE_IDS[channel],
             voice=message.voice.file_id
         )
-        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id)
+        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id, partner_name)
 
     # 8. Видеосообщение (Кружочек / Video Note)
     elif message.video_note:
@@ -129,7 +148,7 @@ async def save_msg(message: Message, bot: Bot):
             chat_id=CHANNELS_ARCHIVE_IDS[channel],
             video_note=message.video_note.file_id
         )
-        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id)
+        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id, partner_name)
         
     # 9. ГИФ-анимация (Animation)
     elif message.animation:
@@ -138,7 +157,7 @@ async def save_msg(message: Message, bot: Bot):
             animation=message.animation.file_id,
             caption=caption
         )
-        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id)
+        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id, partner_name)
         
     # 10. Стикер
     elif message.sticker:
@@ -146,7 +165,7 @@ async def save_msg(message: Message, bot: Bot):
             chat_id=CHANNELS_ARCHIVE_IDS[channel],
             sticker=message.sticker.file_id
         )
-        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id)
+        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id, partner_name)
 
     # 11. Документ / Файл
     elif message.document:
@@ -155,7 +174,7 @@ async def save_msg(message: Message, bot: Bot):
             document=message.document.file_id,
             caption=caption
         )
-        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id)
+        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id, partner_name)
 
     # 12. Аудио (Музыкальный трек)
     elif message.audio:
@@ -164,7 +183,7 @@ async def save_msg(message: Message, bot: Bot):
             audio=message.audio.file_id,
             caption=caption
         )
-        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id)
+        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id, partner_name)
 
     # 13. Неопознанный / новый тип
     else:
@@ -190,13 +209,15 @@ def load_data(user_id, chat_id) -> dict:
             return {}
 
 
-def _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id):
+def _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id, partner_name):
     global channel
     data = load_data(userID, chat_id)
     data[str(msg_id)] = {
+        "partner_name":     partner_name,
         "channel_id":       CHANNELS_ARCHIVE_IDS[channel],
         "channel_msg_id":   saved_in_channel.message_id,
-        "text":             caption
+        "text":             caption,
+        "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
     }
     with open(os.path.join(HISTORY_DIR, userID, f"{chat_id}.json"), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)

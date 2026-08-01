@@ -1,21 +1,21 @@
 import asyncio
-import itertools
 import logging
+from html import escape
 import os
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message, BusinessConnection, BusinessMessagesDeleted
 from config import (
     BOT_API_TOKEN,
     HISTORY_DIR,
-    CHANNELS_ARCHIVE_IDS,
     DELETED_MESSAGES_SHOWN
 )
 from db_conns import(
     update_connections_data,
-    load_connections
 )
 from db_msgs import(
-    save_msg
+    save_msg,
+    _userID_by_connID,
+    load_data
 )
 
 
@@ -40,7 +40,65 @@ async def on_business_message(message: Message) -> None:
     await save_msg(message, bot)
 
 
-async def main() -> None:
+@dp.deleted_business_messages()
+async def on_deleted_business_message(event: BusinessMessagesDeleted):
+    # айди владельца акаунта
+    userID = _userID_by_connID(event.business_connection_id)
+    if not userID:
+        return
+    # айди диалога
+    chatID = event.chat.id
+
+    data = load_data(userID, chatID)
+    if not data:
+        return
+    for i in range(min(DELETED_MESSAGES_SHOWN, len(event.message_ids))):
+        # айди сообщения
+        msgID = event.message_ids[i]
+        
+        if not data.get(str(msgID)):
+            continue
+        partner_name = data[str(msgID)]["partner_name"]
+
+        if partner_name:
+            await bot.send_message(
+                chat_id=int(userID), 
+                text=(
+                    f"<b>Сообщение удалено в чате с </b>\n"
+                    f"<code>{escape(partner_name)}</code> <b>(</b><code>{chatID}</code><b>)</b>\n"
+                    f"<b>Сообщение было отправлено в:</b>\n"
+                    f"{escape(data[str(msgID)]['time'])} (UTC+0)"
+                    ),
+                parse_mode="HTML"
+            )
+
+
+            if data[str(msgID)]["channel_id"]:
+                try:
+                    await bot.copy_message(
+                    chat_id=int(userID),
+                    from_chat_id=data[str(msgID)]["channel_id"],
+                    message_id=data[str(msgID)]["channel_msg_id"],
+                )
+
+                except Exception:
+                    logging.exception("Не удалось скопировать сообщение из архива")
+
+            else:
+                await bot.send_message(
+                    chat_id=int(userID), 
+                    text=data[str(msgID)]["text"],
+                    parse_mode="HTML"
+                    )
+                
+    if len(event.message_ids) > DELETED_MESSAGES_SHOWN:
+        await bot.send_message(
+            chat_id=int(userID), 
+            text=f"<b>Удалено еще {len(event.message_ids) - DELETED_MESSAGES_SHOWN} сообщений</b>",
+            parse_mode="HTML"
+            )
+
+async def main():
     print("Бот запущен")
     await dp.start_polling(bot)
 
