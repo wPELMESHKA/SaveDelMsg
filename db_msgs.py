@@ -1,6 +1,7 @@
 from aiogram import Bot
 from aiogram.types import Message
 from html import escape
+import asyncio
 import json
 import os
 from datetime import datetime, timezone
@@ -12,18 +13,22 @@ from db_conns import(
     # функция загрузки информации из файла
     load_connections
 )
+# словарь с локами на .json файлы
+file_locks = {}
 
 channel = 0
-def next_channel(channel_num):
-    channel_num += 1
-    if channel_num >= len(CHANNELS_ARCHIVE_IDS):
-        channel_num = 0
-    return channel_num
+channel_lock = asyncio.Lock()
+async def get_next_channel() -> str:
+    # берет текущий канал и переключает на следуюющий с локом
+    global channel
+    async with channel_lock:
+        chosen_channel = CHANNELS_ARCHIVE_IDS[channel]
+        channel = (channel + 1) % len(CHANNELS_ARCHIVE_IDS)
+        return chosen_channel
 
 
 # проверка на все типы сообщений
 async def save_msg(message: Message, bot: Bot):
-    global channel
     # получаем айди владельца акаунта через вспомогательную функцию
     userID = _userID_by_connID(message.business_connection_id)
     if userID is None:
@@ -52,34 +57,31 @@ async def save_msg(message: Message, bot: Bot):
 
     # 1. Обычный текст
     if message.text:
-        data = load_data(userID, chat_id)
-        data[str(msg_id)] = {
+        new_msg = {
             "partner_name":     partner_name,
             "channel_id":       None,
             "channel_msg_id":   None,
             "text":             escape(message.text),
             "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
         }
-        with open(os.path.join(HISTORY_DIR, userID, f"{chat_id}.json"), "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
+        await _rewrite_data(userID, chat_id, msg_id, new_msg)
+
 
     # 2. Интерактивный  эмодзи (🎲/🎯/🏀/⚽/🎳/🎰)
     elif message.dice:
-        data = load_data(userID, chat_id)
-        data[str(msg_id)] = {
+        new_msg = {
                 "partner_name":     partner_name,
                 "channel_id":       None,
                 "channel_msg_id":   None,
                 "text":             f"Интерактивный эмодзи: {message.dice.emoji} (Значение: {message.dice.value})",
                 "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
             }
-        with open(os.path.join(HISTORY_DIR, userID, f"{chat_id}.json"), "w", encoding="utf-8") as f:
-                    json.dump(data, f, ensure_ascii=False, indent=4)
+        await _rewrite_data(userID, chat_id, msg_id, new_msg)
+
         
     # 3. Геолокация
     elif message.location:
-        data = load_data(userID, chat_id)
-        data[str(msg_id)] = {
+        new_msg = {
                 "partner_name":     partner_name,
                 "channel_id":       None,
                 "channel_msg_id":   None,
@@ -91,109 +93,105 @@ async def save_msg(message: Message, bot: Bot):
                 ),
                 "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")   
             }
-        with open(os.path.join(HISTORY_DIR, userID, f"{chat_id}.json"), "w", encoding="utf-8") as f:
-                            json.dump(data, f, ensure_ascii=False, indent=4)
+        await _rewrite_data(userID, chat_id, msg_id, new_msg)
 
 
     # 4. Контакт (Номер телефона)
     elif message.contact:
-        data = load_data(userID, chat_id)
-        text_contact = ( 
-            f"Имя контакта: {escape(message.contact.full_name)}\n"
-            f"Номер телефона контакта: {escape(message.contact.phone_number)}"
-        )
-        data[str(msg_id)] = {
+        new_msg = {
                 "partner_name":     partner_name,
                 "channel_id":       None,
                 "channel_msg_id":   None,
                 "text":(             
-                                    f"Имя контакта: {escape(message.contact.full_name)}\n"
-                                    f"Номер телефона контакта: {escape(message.contact.phone_number)}"
+                    f"Имя контакта: {escape(message.contact.full_name)}\n"
+                    f"Номер телефона контакта: {escape(message.contact.phone_number)}"
                     ),
                 "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
             }
-        with open(os.path.join(HISTORY_DIR, userID, f"{chat_id}.json"), "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-        
-    # 5. Фотография
-    elif message.photo:
-        # Отправляем в канал по file_id
-        saved_in_channel = await bot.send_photo(
-            chat_id=CHANNELS_ARCHIVE_IDS[channel],
-            photo=message.photo[-1].file_id, # Самое лучшее качество,
-            caption=caption
-        )
-        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id, partner_name)
+        await _rewrite_data(userID, chat_id, msg_id, new_msg)
 
-    # 6. Видео
-    elif message.video:
-        saved_in_channel = await bot.send_video(
-            chat_id=CHANNELS_ARCHIVE_IDS[channel],
-            video=message.video.file_id,
-            caption=caption
-        )
-        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id, partner_name)
 
-    # 7. Голосовое сообщение (Voice)
-    elif message.voice:
-        saved_in_channel = await bot.send_voice(
-            chat_id=CHANNELS_ARCHIVE_IDS[channel],
-            voice=message.voice.file_id
-        )
-        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id, partner_name)
+    # все медиа которые надо отправлять в канал
+    else:    
+        # 5. Фотография
+        if message.photo:
+            # Отправляем в канал по file_id
+            saved_in_channel = await bot.send_photo(
+                chat_id=await get_next_channel(),
+                photo=message.photo[-1].file_id, # Самое лучшее качество,
+                caption=caption
+            )
+        # 6. Видео
+        elif message.video:
+            saved_in_channel = await bot.send_video(
+                chat_id=await get_next_channel(),
+                video=message.video.file_id,
+                caption=caption
+            )
+        # 7. Голосовое сообщение (Voice)
+        elif message.voice:
+            saved_in_channel = await bot.send_voice(
+                chat_id=await get_next_channel(),
+                voice=message.voice.file_id
+            )
+        # 8. Видеосообщение (Кружочек / Video Note)
+        elif message.video_note:
+            saved_in_channel = await bot.send_video_note(
+                chat_id=await get_next_channel(),
+                video_note=message.video_note.file_id
+            )
+        # 9. ГИФ-анимация (Animation)
+        elif message.animation:
+            saved_in_channel = await bot.send_animation(
+                chat_id=await get_next_channel(),
+                animation=message.animation.file_id,
+                caption=caption
+            )
+        # 10. Стикер
+        elif message.sticker:
+            saved_in_channel = await bot.send_sticker(
+                chat_id=await get_next_channel(),
+                sticker=message.sticker.file_id
+            )
+        # 11. Документ / Файл
+        elif message.document:
+            saved_in_channel = await bot.send_document(
+                chat_id=await get_next_channel(),
+                document=message.document.file_id,
+                caption=caption
+            )
+        # 12. Аудио (Музыкальный трек)
+        elif message.audio:
+            saved_in_channel = await bot.send_audio(
+                chat_id=await get_next_channel(),
+                audio=message.audio.file_id,
+                caption=caption
+            )
+        # 13. Неопознанный / новый тип
+        else:
+            print("Неопознаный тип сообщения")
+            return
 
-    # 8. Видеосообщение (Кружочек / Video Note)
-    elif message.video_note:
-        saved_in_channel = await bot.send_video_note(
-            chat_id=CHANNELS_ARCHIVE_IDS[channel],
-            video_note=message.video_note.file_id
-        )
-        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id, partner_name)
-        
-    # 9. ГИФ-анимация (Animation)
-    elif message.animation:
-        saved_in_channel = await bot.send_animation(
-            chat_id=CHANNELS_ARCHIVE_IDS[channel],
-            animation=message.animation.file_id,
-            caption=caption
-        )
-        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id, partner_name)
-        
-    # 10. Стикер
-    elif message.sticker:
-        saved_in_channel = await bot.send_sticker(
-            chat_id=CHANNELS_ARCHIVE_IDS[channel],
-            sticker=message.sticker.file_id
-        )
-        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id, partner_name)
 
-    # 11. Документ / Файл
-    elif message.document:
-        saved_in_channel = await bot.send_document(
-            chat_id=CHANNELS_ARCHIVE_IDS[channel],
-            document=message.document.file_id,
-            caption=caption
-        )
-        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id, partner_name)
+        new_msg = {
+            "partner_name":     partner_name,
+            "channel_id":       saved_in_channel.chat.id,
+            "channel_msg_id":   saved_in_channel.message_id,
+            "text":             caption,
+            "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
+            }
+        await _rewrite_data(userID, chat_id, msg_id, new_msg)
 
-    # 12. Аудио (Музыкальный трек)
-    elif message.audio:
-        saved_in_channel = await bot.send_audio(
-            chat_id=CHANNELS_ARCHIVE_IDS[channel],
-            audio=message.audio.file_id,
-            caption=caption
-        )
-        _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id, partner_name)
 
-    # 13. Неопознанный / новый тип
-    else:
-        pass
+
 
 def _userID_by_connID(conn):
     data = load_connections()
     if conn not in data:
         return None
     return data[conn]
+
+
 
 
 # функция загрузки данных из файла
@@ -209,17 +207,24 @@ def load_data(user_id, chat_id) -> dict:
             return {}
 
 
-def _rewrite_data(userID, chat_id, saved_in_channel, caption, msg_id, partner_name):
-    global channel
-    data = load_data(userID, chat_id)
-    data[str(msg_id)] = {
-        "partner_name":     partner_name,
-        "channel_id":       saved_in_channel.chat.id,
-        "channel_msg_id":   saved_in_channel.message_id,
-        "text":             caption,
-        "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
-    }
-    with open(os.path.join(HISTORY_DIR, userID, f"{chat_id}.json"), "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-    channel = next_channel(channel)
-     
+
+
+async def _rewrite_data(userID, chat_id, msg_id, new_msg):
+    lock = get_file_lock(userID, chat_id)
+
+    async with lock:
+        data = load_data(userID, chat_id)
+        data[str(msg_id)] = new_msg
+
+        with open(os.path.join(HISTORY_DIR, userID, f"{chat_id}.json"), "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)    
+
+
+
+
+def get_file_lock(user_id: str, chat_id: int) -> asyncio.Lock:
+    # получаем лок для конкретного чата
+    key = f"{user_id}_{chat_id}"
+    if key not in file_locks:
+        file_locks[key] = asyncio.Lock()
+    return file_locks[key]
