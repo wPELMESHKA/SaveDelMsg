@@ -3,6 +3,7 @@ from aiogram.types import Message
 from html import escape
 import asyncio
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from config import(
@@ -37,11 +38,11 @@ async def save_msg(message: Message, bot: Bot):
     # когда в личку пишут от имени канала то message.from_user.id вообще не будет и код упадет 
     if message.from_user:
         if userID == str(message.from_user.id):
-            partner_name = None
+            return
         else: 
             partner_name = message.from_user.full_name
     else:
-        partner_name = None
+        return
 
     # создаем папку если ее еще нету 
     os.makedirs(os.path.join(HISTORY_DIR, userID), exist_ok=True)
@@ -110,66 +111,106 @@ async def save_msg(message: Message, bot: Bot):
             }
         await _rewrite_data(userID, chat_id, msg_id, new_msg)
 
+    # 5. Место (Venue)
+    elif message.venue:
+        new_msg = {
+                "partner_name":     partner_name,
+                "channel_id":       None,
+                "channel_msg_id":   None,
+                "text": (
+                    f"Место: {escape(message.venue.title)}\n"
+                    f"Адрес: {escape(message.venue.address)}\n"
+                    f'<a href="https://maps.google.com/?q={message.venue.location.latitude},{message.venue.location.longitude}">Открыть на Google картах</a>'
+                    ),
+                "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
+            }
+        await _rewrite_data(userID, chat_id, msg_id, new_msg)
+ 
+ 
 
     # все медиа которые надо отправлять в канал
     else:    
-        # 5. Фотография
-        if message.photo:
-            # Отправляем в канал по file_id
-            saved_in_channel = await bot.send_photo(
-                chat_id=await get_next_channel(),
-                photo=message.photo[-1].file_id, # Самое лучшее качество,
-                caption=caption
-            )
-        # 6. Видео
-        elif message.video:
-            saved_in_channel = await bot.send_video(
-                chat_id=await get_next_channel(),
-                video=message.video.file_id,
-                caption=caption
-            )
-        # 7. Голосовое сообщение (Voice)
-        elif message.voice:
-            saved_in_channel = await bot.send_voice(
-                chat_id=await get_next_channel(),
-                voice=message.voice.file_id
-            )
-        # 8. Видеосообщение (Кружочек / Video Note)
-        elif message.video_note:
-            saved_in_channel = await bot.send_video_note(
-                chat_id=await get_next_channel(),
-                video_note=message.video_note.file_id
-            )
-        # 9. ГИФ-анимация (Animation)
-        elif message.animation:
-            saved_in_channel = await bot.send_animation(
-                chat_id=await get_next_channel(),
-                animation=message.animation.file_id,
-                caption=caption
-            )
-        # 10. Стикер
-        elif message.sticker:
-            saved_in_channel = await bot.send_sticker(
-                chat_id=await get_next_channel(),
-                sticker=message.sticker.file_id
-            )
-        # 11. Документ / Файл
-        elif message.document:
-            saved_in_channel = await bot.send_document(
-                chat_id=await get_next_channel(),
-                document=message.document.file_id,
-                caption=caption
-            )
-        # 12. Аудио (Музыкальный трек)
-        elif message.audio:
-            saved_in_channel = await bot.send_audio(
-                chat_id=await get_next_channel(),
-                audio=message.audio.file_id,
-                caption=caption
-            )
-        # 13. Неопознанный / новый тип
-        else:
-            print("Неопознаный тип сообщения")
+        try:
+            # 6. Фотография
+            if message.photo:
+                # Отправляем в канал по file_id
+                saved_in_channel = await bot.send_photo(
+                    chat_id=await get_next_channel(),
+                    photo=message.photo[-1].file_id, # Самое лучшее качество,
+                    caption=caption
+                )
+            # 7. Видео
+            elif message.video:
+                saved_in_channel = await bot.send_video(
+                    chat_id=await get_next_channel(),
+                    video=message.video.file_id,
+                    caption=caption
+                )
+            # 8. Голосовое сообщение (Voice)
+            elif message.voice:
+                saved_in_channel = await bot.send_voice(
+                    chat_id=await get_next_channel(),
+                    voice=message.voice.file_id
+                )
+            # 9. Видеосообщение (Кружочек / Video Note)
+            elif message.video_note:
+                saved_in_channel = await bot.send_video_note(
+                    chat_id=await get_next_channel(),
+                    video_note=message.video_note.file_id
+                )
+            # 10. ГИФ-анимация (Animation)
+            elif message.animation:
+                saved_in_channel = await bot.send_animation(
+                    chat_id=await get_next_channel(),
+                    animation=message.animation.file_id,
+                    caption=caption
+                )
+            # 11. Стикер
+            elif message.sticker:
+                saved_in_channel = await bot.send_sticker(
+                    chat_id=await get_next_channel(),
+                    sticker=message.sticker.file_id
+                )
+            # 12. Документ / Файл
+            elif message.document:
+                saved_in_channel = await bot.send_document(
+                    chat_id=await get_next_channel(),
+                    document=message.document.file_id,
+                    caption=caption
+                )
+            # 13. Аудио (Музыкальный трек)
+            elif message.audio:
+                saved_in_channel = await bot.send_audio(
+                    chat_id=await get_next_channel(),
+                    audio=message.audio.file_id,
+                    caption=caption
+                )
+            # 14. Неопознанный / новый тип
+            else:
+                print("Неопознаный тип сообщения")
+                # даже для неизвестного типа сохраняем "заглушку",
+                # чтобы событие удаления не потерялось молча
+                new_msg = {
+                    "partner_name":     partner_name,
+                    "channel_id":       None,
+                    "channel_msg_id":   None,
+                    "text":             "Сообщение неизвестного типа (не удалось сохранить содержимое)",
+                    "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
+                }
+                await _rewrite_data(userID, chat_id, msg_id, new_msg)
+                return
+        except Exception as e:
+            logging.exception(f"Не удалось отправить медиа в архивный канал: {e}")
+            # сохраняем запись без архивной копии, чтобы хотя бы факт
+            # сообщения (и его последующее удаление) не потерялся
+            new_msg = {
+                "partner_name":     partner_name,
+                "channel_id":       None,
+                "channel_msg_id":   None,
+                "text":             (caption or "Медиафайл (не удалось сохранить в архив)"),
+                "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
+            }
+            await _rewrite_data(userID, chat_id, msg_id, new_msg)
             return
 
 

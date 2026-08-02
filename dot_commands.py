@@ -3,19 +3,25 @@ from aiogram import Bot
 from aiogram.types import Message
 from db_msgs import _userID_by_connID
 import asyncio
+from config import(
+    SPAM_DEFAULT_NUM,
+    SPAM_DELAY_SECONDS,
+    SPAM_MAX_NUM
+)
+
 
 async def dot_commands(message: Message, bot):
     if not is_owner(message):
         return 
 
     if message.text.startswith(".random"):
-        return await random_dot_command(message, bot)
+        await random_dot_command(message, bot)
 
     elif message.text.startswith(".gay"):
-        return await gay_dot_command(message, bot)
+        await gay_dot_command(message, bot)
 
     elif message.text.startswith(".spam"):
-        return await spam_dot_command(message, bot)
+        await spam_dot_command(message, bot)
     
     return
 
@@ -44,7 +50,7 @@ async def random_dot_command(message: Message, bot: Bot):
     
     # 4. Отправляем новое сообщение в этот же бизнес-чат
     await message.answer(f"Мне выпало число: <b>{random_num}</b>", parse_mode="HTML")
-    return True
+    return
 
 
 # .gay
@@ -54,50 +60,53 @@ async def gay_dot_command(message: Message, bot: Bot):
     await del_dot_command(message, bot)
 
     await message.answer(f"🏳️‍🌈Я гей на <b>{random_num}%</b>🏳️‍🌈", parse_mode="HTML")
-    return True
+    return
 
 
 # .spam
-async def spam_dot_command(message: Message, bot: Bot):
-    delay_seconds = 1.0
+async def spam_dot_command(message: Message, bot: Bot) -> bool:
     args = message.text.split(maxsplit=2)
-    spam_num = 5 # дефолтное значение
+    spam_num = SPAM_DEFAULT_NUM
+    text_to_send = ""
+
+
     if len(args) == 1:
         await del_dot_command(message, bot)
-        await message.answer(f"⚠️ Использование: \n<code>.spam [кол-во] [текст]</code>", parse_mode="HTML")
+        await message.answer("⚠️ Использование: \n<code>.spam [кол-во] [текст]</code>", parse_mode="HTML")
         return
 
+
     elif len(args) == 2:
-        await del_dot_command(message, bot)
-        for i in range(spam_num):
-            await message.answer(f"{args[1]}")
-            await asyncio.sleep(delay_seconds)
-        return True
-    
+        text_to_send = args[1]
+        spam_num = SPAM_DEFAULT_NUM
+
+
     elif len(args) == 3:
         try:
             spam_num = int(args[1])
 
-            if spam_num < 1:
-                spam_num = 5 # дефолтное значение
+            # Если количество < 1 или больше максимума — выводим предупреждение
+            if spam_num < 1 or spam_num > SPAM_MAX_NUM:
                 await del_dot_command(message, bot)
-                for i in range(spam_num):
-                    await message.answer(f"{args[1]} {args[2]}")
-                    await asyncio.sleep(delay_seconds)
-                return True
-
-            else:
-                await del_dot_command(message, bot)
-                for i in range(spam_num):
-                    await message.answer(f"{args[2]}")
-                    await asyncio.sleep(delay_seconds)
-                return True
+                await message.answer("⚠️ Использование: \n<code>.spam [кол-во] [текст]</code>", parse_mode="HTML")
+                return
+            
+            text_to_send = args[2]
 
         except ValueError:
-            await del_dot_command(message, bot)
-            for i in range(spam_num):
-                await message.answer(f"{args[1]} {args[2]}")
-                await asyncio.sleep(delay_seconds)
+            # Если первый аргумент не число (например, ".spam привет мир")
+            text_to_send = f"{args[1]} {args[2]}"
+            spam_num = SPAM_DEFAULT_NUM
+
+    # Удаляем исходную команду
+    await del_dot_command(message, bot)
+
+    # Цикл отправки
+    for _ in range(spam_num):
+        await message.answer(text_to_send)
+        await asyncio.sleep(SPAM_DELAY_SECONDS)
+
+    return
     
 
 
@@ -105,9 +114,9 @@ async def spam_dot_command(message: Message, bot: Bot):
 def is_owner(message):
     owner_id = _userID_by_connID(message.business_connection_id)
     if not owner_id or not message.from_user:
-        return
+        return False
     if str(message.from_user.id) != owner_id:
-        return
+        return False
     return True
 
 
@@ -118,7 +127,7 @@ async def del_dot_command(message: Message, bot: Bot):
             business_connection_id=message.business_connection_id,
             message_ids=[message.message_id]
             )
-        return True
+        return
     except Exception as e:
         print(f"Ошибка при удалении сообщения: {e}")
         return

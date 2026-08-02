@@ -43,8 +43,7 @@ async def on_business_message(message: Message) -> None:
         await restore_connection(message.business_connection_id, bot)
 
     if message.text and message.text.startswith("."):
-        if await dot_commands(message, bot):
-            return
+        await dot_commands(message, bot)
         
     await save_msg(message, bot)
 
@@ -61,51 +60,56 @@ async def on_deleted_business_message(event: BusinessMessagesDeleted):
     data = load_data(userID, chatID)
     if not data:
         return
+
+    msg_showed = 0
     for i in range(min(DELETED_MESSAGES_SHOWN, len(event.message_ids))):
         # айди сообщения
         msgID = event.message_ids[i]
         
         if not data.get(str(msgID)):
             continue
-        partner_name = data[str(msgID)]["partner_name"]
 
-        if partner_name:
-            await bot.send_message(
-                chat_id=int(userID), 
-                text=(
-                    f"<b>Сообщение удалено в чате с </b>\n"
-                    f"<code>{escape(partner_name)}</code> <b>(</b><code>{chatID}</code><b>)</b>\n"
-                    f"<b>Сообщение было отправлено в:</b>\n"
-                    f"{escape(data[str(msgID)]['time'])} (UTC+0)"
-                    ),
-                parse_mode="HTML"
-            )
-
-
-            if data[str(msgID)]["channel_id"]:
-                try:
-                    await bot.copy_message(
-                    chat_id=int(userID),
-                    from_chat_id=data[str(msgID)]["channel_id"],
-                    message_id=data[str(msgID)]["channel_msg_id"],
-                )
-
-                except Exception:
-                    logging.exception("Не удалось скопировать сообщение из архива")
-
-            else:
-                await bot.send_message(
-                    chat_id=int(userID), 
-                    text=data[str(msgID)]["text"],
-                    parse_mode="HTML"
-                    )
-                
-    if len(event.message_ids) > DELETED_MESSAGES_SHOWN:
         await bot.send_message(
             chat_id=int(userID), 
-            text=f"<b>Удалено еще {len(event.message_ids) - DELETED_MESSAGES_SHOWN} сообщений</b>",
+            text=(
+                f"<b>Сообщение удалено в чате с:</b>\n"
+                f"<code>{escape(data[str(msgID)]['partner_name'])}</code> <b>(</b><code>{chatID}</code><b>)</b>\n"
+                f"<b>Сообщение было отправлено в:</b>\n"
+                f"{escape(data[str(msgID)]['time'])} (UTC+0)"
+                ),
+            parse_mode="HTML"
+        )
+        msg_showed += 1
+
+        if data[str(msgID)]["channel_id"]:
+            try:
+                await bot.copy_message(
+                chat_id=int(userID),
+                from_chat_id=data[str(msgID)]["channel_id"],
+                message_id=data[str(msgID)]["channel_msg_id"],
+            )
+
+            except Exception:
+                logging.exception("Не удалось скопировать сообщение из архива")
+
+        else:
+            await bot.send_message(
+                chat_id=int(userID), 
+                text=data[str(msgID)]["text"],
+                parse_mode="HTML"
+                )
+
+    all_del_msg = 0
+    for i in event.message_ids:
+        if str(i) in data:
+            all_del_msg += 1
+    if all_del_msg > msg_showed:
+         await bot.send_message(
+            chat_id=int(userID), 
+            text=f"<b>Удалено еще {all_del_msg - msg_showed} сообщений</b>",
             parse_mode="HTML"
             )
+
 
 async def main():
     print("Бот запущен")

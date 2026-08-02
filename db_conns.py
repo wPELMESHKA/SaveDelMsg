@@ -5,9 +5,10 @@ from config import(
     HISTORY_DIR
 )
 from aiogram import Bot
+import asyncio
 
-# помогает сделать правильный путь к файлу: на Windows HISTORY_DIR\connections.json, на Linux HISTORY_DIR/connections.json
-# CONNECTIONS_PATH = os.path.join(HISTORY_DIR, "connections.json")
+# лок на файл connections.json (он один на весь бот, поэтому лок глобальный)
+connections_lock = asyncio.Lock()
 
 # функция загрузки данных из файла
 def load_connections() -> dict:
@@ -25,16 +26,20 @@ def load_connections() -> dict:
 
 # функция обновления данных в фалйе
 async def update_connections_data(conn_id: str, user_id: int) -> None:
-    # загружаем список из файла
-    data = load_connections()
-    # добавляем пару
-    data[str(conn_id)] = str(user_id)
-    # перезаписываем весь словарь в файл
-    with open(os.path.join(HISTORY_DIR, DB_FILE), "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+    async with connections_lock:
+        # загружаем список из файла
+        data = load_connections()
+        # добавляем пару
+        data[str(conn_id)] = str(user_id)
+        # перезаписываем весь словарь в файл
+        with open(os.path.join(HISTORY_DIR, DB_FILE), "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
 
 
 
 async def restore_connection(conn_id, bot: Bot):
-    conn_data = await bot.get_business_connection(business_connection_id=conn_id)
-    await update_connections_data(conn_id, conn_data.user.id)
+    try:
+        conn_data = await bot.get_business_connection(business_connection_id=conn_id)
+        await update_connections_data(conn_id, conn_data.user.id)
+    except Exception as e:
+        print(f"Ошибка при восстановлении подключения {conn_id}: {e}")

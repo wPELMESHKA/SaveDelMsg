@@ -11,6 +11,11 @@ CHANNELS_ARCHIVE_IDS = []
 
 # код который разделяет строку с запятыми на несколько елементов в списке
 archive_channel_ids_str = os.getenv("CHANNELS_ARCHIVE_IDS", "").replace(" ", "")
+if not archive_channel_ids_str:
+    raise RuntimeError(
+        "CHANNELS_ARCHIVE_IDS не задан в .env — укажи хотя бы один ID канала для архива медиа"
+    )
+
 i = 0
 while i < len(archive_channel_ids_str):
     if archive_channel_ids_str[i] == ",":
@@ -30,3 +35,9 @@ DELETED_MESSAGES_SHOWN = 10
 HISTORY_DIR = "history"
 
 DB_FILE = "connections.json"
+
+SPAM_DELAY_SECONDS = 1.0
+
+SPAM_DEFAULT_NUM = 5
+
+SPAM_MAX_NUM = 50
