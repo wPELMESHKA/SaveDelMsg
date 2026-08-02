@@ -10,10 +10,17 @@ from config import(
 )
 
 
+active_spammers = set()
+
 async def dot_commands(message: Message, bot):
     if not is_owner(message):
         return 
-
+    # находиться ли юзер в спамерах
+    owner_id = _userID_by_connID(message.business_connection_id)
+    if owner_id in active_spammers:
+        await del_dot_command(message, bot)
+        return
+    
     if message.text.startswith(".random"):
         await random_dot_command(message, bot)
 
@@ -21,7 +28,7 @@ async def dot_commands(message: Message, bot):
         await gay_dot_command(message, bot)
 
     elif message.text.startswith(".spam"):
-        await spam_dot_command(message, bot)
+        await spam_dot_command(message, bot, owner_id)
     
     return
 
@@ -32,7 +39,7 @@ async def random_dot_command(message: Message, bot: Bot):
     # 1. Парсим аргументы (например ".random 0 100" станет [".random", "1", "100"])
     args = message.text.split()
     min_val, max_val = 0, 100  # Значения по умолчанию
-
+    
 
     if len(args) == 3:
         try:
@@ -64,47 +71,48 @@ async def gay_dot_command(message: Message, bot: Bot):
 
 
 # .spam
-async def spam_dot_command(message: Message, bot: Bot) -> bool:
-    args = message.text.split(maxsplit=2)
-    spam_num = SPAM_DEFAULT_NUM
-    text_to_send = ""
-
-
-    if len(args) == 1:
-        await del_dot_command(message, bot)
-        await message.answer("⚠️ Использование: \n<code>.spam [кол-во] [текст]</code>", parse_mode="HTML")
-        return
-
-
-    elif len(args) == 2:
-        text_to_send = args[1]
+async def spam_dot_command(message: Message, bot: Bot, owner_id) -> bool:
+    active_spammers.add(owner_id)
+    try:
+        args = message.text.split(maxsplit=2)
         spam_num = SPAM_DEFAULT_NUM
+        text_to_send = ""
+
+        await del_dot_command(message, bot)
+
+        if len(args) == 1:
+            await message.answer("⚠️ Использование: \n<code>.spam [кол-во] [текст]</code>", parse_mode="HTML")
+            return
 
 
-    elif len(args) == 3:
-        try:
-            spam_num = int(args[1])
-
-            # Если количество < 1 или больше максимума — выводим предупреждение
-            if spam_num < 1 or spam_num > SPAM_MAX_NUM:
-                await del_dot_command(message, bot)
-                await message.answer("⚠️ Использование: \n<code>.spam [кол-во] [текст]</code>", parse_mode="HTML")
-                return
-            
-            text_to_send = args[2]
-
-        except ValueError:
-            # Если первый аргумент не число (например, ".spam привет мир")
-            text_to_send = f"{args[1]} {args[2]}"
+        elif len(args) == 2:
+            text_to_send = args[1]
             spam_num = SPAM_DEFAULT_NUM
 
-    # Удаляем исходную команду
-    await del_dot_command(message, bot)
 
-    # Цикл отправки
-    for _ in range(spam_num):
-        await message.answer(text_to_send)
-        await asyncio.sleep(SPAM_DELAY_SECONDS)
+        elif len(args) == 3:
+            try:
+                spam_num = int(args[1])
+
+                # Если количество < 1 или больше максимума — выводим предупреждение
+                if spam_num < 1 or spam_num > SPAM_MAX_NUM:
+                    await message.answer("⚠️ Использование: \n<code>.spam [кол-во] [текст]</code>", parse_mode="HTML")
+                    return
+                
+                text_to_send = args[2]
+
+            except ValueError:
+                # Если первый аргумент не число (например, ".spam привет мир")
+                text_to_send = f"{args[1]} {args[2]}"
+                spam_num = SPAM_DEFAULT_NUM
+
+
+        # Цикл отправки
+        for _ in range(spam_num):
+            await message.answer(text_to_send)
+            await asyncio.sleep(SPAM_DELAY_SECONDS)
+    finally:
+        active_spammers.discard(owner_id)
 
     return
     
