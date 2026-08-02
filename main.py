@@ -11,14 +11,16 @@ from config import (
 )
 from db_conns import(
     update_connections_data,
+    restore_connection
 )
 from db_msgs import(
     save_msg,
     _userID_by_connID,
     load_data
 )
-
-
+from dot_commands import(
+    dot_commands
+)
 
 os.makedirs(HISTORY_DIR, exist_ok=True)
 
@@ -37,6 +39,13 @@ async def on_business_connection(connection: BusinessConnection) -> None:
 
 @dp.business_message()
 async def on_business_message(message: Message) -> None:
+    if _userID_by_connID(message.business_connection_id) is None:
+        await restore_connection(message.business_connection_id, bot)
+
+    if message.text and message.text.startswith("."):
+        if await dot_commands(message, bot):
+            return
+        
     await save_msg(message, bot)
 
 

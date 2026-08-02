@@ -4,7 +4,7 @@ from config import(
     DB_FILE,
     HISTORY_DIR
 )
-
+from aiogram import Bot
 
 # помогает сделать правильный путь к файлу: на Windows HISTORY_DIR\connections.json, на Linux HISTORY_DIR/connections.json
 # CONNECTIONS_PATH = os.path.join(HISTORY_DIR, "connections.json")
@@ -32,4 +32,9 @@ async def update_connections_data(conn_id: str, user_id: int) -> None:
     # перезаписываем весь словарь в файл
     with open(os.path.join(HISTORY_DIR, DB_FILE), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
-    
+
+
+
+async def restore_connection(conn_id, bot: Bot):
+    conn_data = await bot.get_business_connection(business_connection_id=conn_id)
+    await update_connections_data(conn_id, conn_data.user.id)
