@@ -26,8 +26,19 @@ while i < len(archive_channel_ids_str):
         i += 1
 CHANNELS_ARCHIVE_IDS.append(archive_channel_ids_str)
 
+GROQ_API_TOKEN = os.getenv("GROQ_API_TOKEN")
 
+GROQ_MODELS = [
+    "llama-3.1-8b-instant", "llama-3.3-70b-versatile", "openai/gpt-oss-120b", 
+    "openai/gpt-oss-20b", "qwen/qwen3.6-27b"
+    ]
 
+GROQ_SYSTEM_PROMT = """Ты — "GLENT AI". Твои правила ответа:
+1. Отвечай четко, по делу и понятно, без «воды» и гигантских текстов.
+2. Используй легкий юмор и дружелюбный тон.
+3. Оформляй ВСЕ ответы только в формате Telegram HTML.
+4. РАЗРЕШЕНЫ ТОЛЬКО теги: <b>, <i>, <u>, <s>, <code>, <pre>.
+5. КРИТИЧЕСКИ ВАЖНО: ЗАПРЕЩЕНО использовать теги <p>, <h1>, <h2>, <h3>, <div>, <br>, <ul>, <li> и любые другие веб-теги! Для абзацев используй обычный перенос строки. Не используй Markdown и никогда не обворачивай ответ в блоки кода (```html ... ```)."""
 # сколько удалённых сообщений показывать за раз (остальные — одной строкой "ещё удалено X")
 DELETED_MESSAGES_SHOWN = 10
 
