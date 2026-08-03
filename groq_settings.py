@@ -1,4 +1,5 @@
 from groq import AsyncGroq
+from html import escape
 from config import(
     GROQ_API_TOKEN,
     GROQ_MODELS,
@@ -25,7 +26,7 @@ async def get_answer(question: str):
         },
         {
             "role": "user",
-            "content": question
+            "content": escape(question)
         }]
 
 

@@ -2,6 +2,7 @@ import random
 from aiogram import Bot
 from aiogram.types import Message
 from db_msgs import _userID_by_connID
+from html import escape
 import asyncio
 from config import(
     SPAM_DEFAULT_NUM,
@@ -222,8 +223,10 @@ async def ai_dot_command(message: Message, bot: Bot):
         return
 
     answer = await get_answer(args[1])
-    await message.answer(answer, parse_mode="HTML")
-
+    try:
+        await message.answer(answer, parse_mode="HTML")
+    except Exception:
+        await message.answer(escape(answer))
 
 
 def is_owner(message):
