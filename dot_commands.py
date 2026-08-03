@@ -6,7 +6,9 @@ import asyncio
 from config import(
     SPAM_DEFAULT_NUM,
     SPAM_DELAY_SECONDS,
-    SPAM_MAX_NUM
+    SPAM_MAX_NUM,
+    BELOW_ZALGO_SYMBOLS,
+    ABOVE_ZALGO_SYMBOLS
 )
 
 
@@ -20,17 +22,46 @@ async def dot_commands(message: Message, bot):
     if owner_id in active_spammers:
         await del_dot_command(message, bot)
         return
+
+    if message.text == ".help":
+        await help_dot_command(message, bot)
     
-    if message.text.startswith(".random"):
+    elif message.text.startswith(".random"):
         await random_dot_command(message, bot)
 
-    elif message.text.startswith(".gay"):
+    elif message.text == ".gay":
         await gay_dot_command(message, bot)
 
     elif message.text.startswith(".spam"):
         await spam_dot_command(message, bot, owner_id)
-    
+
+    elif message.text.startswith(".reg"):
+        await reg_dot_command(message, bot)
+
+    elif message.text.startswith(".zalgo"):
+        await zalgo_dot_command(message, bot)
+
+    elif message.text == ".coin":
+        await coin_dot_command(message, bot)
     return
+
+
+# .help
+async def help_dot_command(message: Message, bot: Bot):
+    await del_dot_command(message, bot)
+    await message.answer(
+        f"<b>🛠 Список доступных команд:</b>\n\n"
+        "• <code>.help</code> — Показать это меню с инструкцией\n"
+        "• <code>.random [мин] [макс]</code> — Число в заданном диапазоне (по умолчанию 0, 100)\n"
+        "• <code>.gay</code> — Узнать свой уровень гейства\n"
+        "• <code>.coin</code> — Подбросить монетку\n"
+        "• <code>.reg [текст]</code> — Сделать текст СлУчАйНыМ рЕгИсТрОм\n"
+        "• <code>.zalgo [текст]</code> — Сделать текст сломанным (лимит символов 1000) \n"
+        "• <code>.spam [кол-во] [текст]</code> — Спам текстом 1 сообщение/с (по умолчанию 5 раз, максимум 50)\n",
+        parse_mode="HTML"
+        )
+    return
+
 
 
 
@@ -40,7 +71,6 @@ async def random_dot_command(message: Message, bot: Bot):
     args = message.text.split()
     min_val, max_val = 0, 100  # Значения по умолчанию
     
-
     if len(args) == 3:
         try:
             val1 = int(args[1])
@@ -116,6 +146,55 @@ async def spam_dot_command(message: Message, bot: Bot, owner_id) -> bool:
 
     return
     
+
+
+# .reg
+async def reg_dot_command(message: Message, bot: Bot):
+    args = message.text.split(maxsplit=1)
+    await del_dot_command(message, bot)
+    if len(args) == 1:
+        await message.answer("⚠️ Использование: \n<code>.reg [текст]</code>", parse_mode="HTML")
+        return
+
+    text_to_send = ""
+
+    for i in args[1]:
+        if random.randint(0, 1) == 0:
+            text_to_send += i.upper()
+        else:
+            text_to_send += i.lower()
+
+    await message.answer(text_to_send)
+    return
+
+
+# .zalgo
+async def zalgo_dot_command(message: Message, bot: Bot):
+    args = message.text.split(maxsplit=1)
+    await del_dot_command(message, bot)
+    if len(args) == 1:
+        await message.answer("⚠️ Использование: \n<code>.zalgo [текст]</code>", parse_mode="HTML")
+        return
+    if len(args[1]) > 1000:
+        await message.answer("⚠️ Текст слишком длинный! (Максимум 1000 символов)", parse_mode="HTML")
+        return
+    text_to_send = ""
+    for char in args[1]:
+        text_to_send += (char + random.choice(ABOVE_ZALGO_SYMBOLS) + random.choice(BELOW_ZALGO_SYMBOLS))
+    await message.answer(text_to_send)
+    return
+
+
+# .coin
+async def coin_dot_command(message: Message, bot: Bot):
+    await del_dot_command(message, bot)
+    if random.randint(0, 1) == 0:
+        await message.answer(f"Результат подбрасывания:\n\n🦅 Выпал ОРЕЛ!")
+    else:
+        await message.answer(f"Результат подбрасывания:\n\n🪙 Выпала РЕШКА!")
+    return
+
+
 
 
 
