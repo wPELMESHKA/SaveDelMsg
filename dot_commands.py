@@ -1,5 +1,6 @@
 import random
 from aiogram import Bot
+import re
 from aiogram.types import Message
 from db_msgs import _userID_by_connID
 from html import escape
@@ -222,11 +223,14 @@ async def ai_dot_command(message: Message, bot: Bot):
         await message.answer(f"⚠️ Максимальная длина вопроса 200 символов")
         return
 
-    answer = await get_answer(args[1])
     try:
-        await message.answer(answer, parse_mode="HTML")
-    except Exception:
-        await message.answer(escape(answer))
+        answer = await get_answer(args[1])
+    except Exception as e:
+        print(f"Ошибка API Groq: {e}")
+        await message.answer("⚠️ Ошибка при обращении к нейросети.")
+        return
+
+    await message.answer(answer, parse_mode="HTML")
 
 
 def is_owner(message):
