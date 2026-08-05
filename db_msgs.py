@@ -7,7 +7,7 @@ import logging
 import os
 from datetime import datetime, timezone
 from config import(
-    HISTORY_DIR, 
+    DATA_FOLDER, 
     CHANNELS_ARCHIVE_IDS
 )
 from db_conns import(
@@ -45,7 +45,7 @@ async def save_msg(message: Message, bot: Bot):
         return
 
     # создаем папку если ее еще нету 
-    os.makedirs(os.path.join(HISTORY_DIR, userID), exist_ok=True)
+    os.makedirs(os.path.join(DATA_FOLDER, userID), exist_ok=True)
 
     # ID собеседника
     chat_id: int = message.chat.id
@@ -238,10 +238,10 @@ def _userID_by_connID(conn):
 # функция загрузки данных из файла
 def load_data(user_id, chat_id) -> dict:
     # если файла нету возращаем пустой список
-    if not os.path.exists(os.path.join(HISTORY_DIR, user_id, f"{chat_id}.json")):
+    if not os.path.exists(os.path.join(DATA_FOLDER, user_id, f"{chat_id}.json")):
         return {}
     # открываем файл в режиме чтения ("r"), с кодировкой utf-8
-    with open(os.path.join(HISTORY_DIR, user_id, f"{chat_id}.json"), "r", encoding="utf-8") as f:
+    with open(os.path.join(DATA_FOLDER, user_id, f"{chat_id}.json"), "r", encoding="utf-8") as f:
         try:
             return json.load(f)
         except json.JSONDecodeError:
@@ -254,11 +254,22 @@ async def _rewrite_data(userID, chat_id, msg_id, new_msg):
     lock = get_file_lock(userID, chat_id)
 
     async with lock:
+        temp_path = os.path.join(DATA_FOLDER, userID, f"_{chat_id}.json")
+        main_path = os.path.join(DATA_FOLDER, userID, f"{chat_id}.json")
+
+
+        # получаем данные с текущего файла
         data = load_data(userID, chat_id)
+
+        # добавляем в словарь новое сообщение
         data[str(msg_id)] = new_msg
 
-        with open(os.path.join(HISTORY_DIR, userID, f"{chat_id}.json"), "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)    
+        # сохраняем готовый файл
+        with open(temp_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+
+        # удаляет main_path если он был, переносит файл из путя temp_path в main_path
+        os.replace(temp_path, main_path)
 
 
 

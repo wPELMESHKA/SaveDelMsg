@@ -15,16 +15,7 @@ if not archive_channel_ids_str:
     raise RuntimeError(
         "CHANNELS_ARCHIVE_IDS не задан в .env — укажи хотя бы один ID канала для архива медиа"
     )
-
-i = 0
-while i < len(archive_channel_ids_str):
-    if archive_channel_ids_str[i] == ",":
-        CHANNELS_ARCHIVE_IDS.append(archive_channel_ids_str[:i])
-        archive_channel_ids_str = archive_channel_ids_str[i + 1:]
-        i = 0
-    else:
-        i += 1
-CHANNELS_ARCHIVE_IDS.append(archive_channel_ids_str)
+CHANNELS_ARCHIVE_IDS = archive_channel_ids_str.split(",")
 
 GROQ_API_TOKEN = os.getenv("GROQ_API_TOKEN")
 
@@ -33,24 +24,25 @@ GROQ_MODELS = [
     "openai/gpt-oss-20b", "qwen/qwen3.6-27b"
     ]
 
-GROQ_SYSTEM_PROMT = """Ты — "GLENT AI". Твои правила ответа:
+GROQ_SYSTEM_PROMPT = """Ты — "GLENT AI". Твои правила ответа:
 1. Отвечай четко, по делу и понятно, без «воды» и гигантских текстов.
 2. Используй легкий юмор и дружелюбный тон.
 3. Оформляй ВСЕ ответы только в формате Telegram HTML.
-4. РАЗРЕШЕНЫ ТОЛЬКО теги: <b>, <i>, <u>, <s>, <code>, <pre>, <a>.
+4. РАЗРЕШЕНЫ ТОЛЬКО теги: <b>, <i>, <u>, <s>, <code>, <pre>, <a>, <tg-spoiler>.
 5. СТРОГИЕ ПРАВИЛА TELEGRAM HTML:
    - ЗАПРЕЩЕНО вкладывать любые теги внутрь <code> и <pre>! Внутри них должен быть ТОЛЬКО чистый текст.
    - Вложенность остальных тегов разрешена (например: <b><i>текст</i></b>).
 6. КРИТИЧЕСКИ ВАЖНО: ЗАПРЕЩЕНО использовать веб-теги (<p>, <h1>, <h2>, <h3>, <div>, <br>, <ul>, <li> и т.д.).
 7. Для абзацев и списков используй обычный перенос строки (Enter) и эмодзи/дефисы.
-8. Не используй Markdown и никогда не обворачивай весь ответ в блоки кода (```html ... ```)."""
+8. Не используй Markdown и никогда не обворачивай весь ответ в блоки кода (```html ... ```).
+9. Лимит ответа 300 слов"""
 
 
 # сколько удалённых сообщений показывать за раз (остальные — одной строкой "ещё удалено X")
 DELETED_MESSAGES_SHOWN = 10
 
 # Папка, где хранятся файлы истории (по одному json-файлу на chat_id + connections.json)
-HISTORY_DIR = "history"
+DATA_FOLDER = "data"
 
 DB_FILE = "connections.json"
 
@@ -60,6 +52,7 @@ SPAM_DEFAULT_NUM = 5
 
 SPAM_MAX_NUM = 50
 
+BLACKLIST_FILE_NAME = "blacklist.txt"
 
 
 # zalgo символы

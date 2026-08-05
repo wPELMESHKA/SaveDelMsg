@@ -4,7 +4,7 @@ import re
 from config import(
     GROQ_API_TOKEN,
     GROQ_MODELS,
-    GROQ_SYSTEM_PROMT
+    GROQ_SYSTEM_PROMPT
 )
 import asyncio
 
@@ -26,7 +26,7 @@ async def get_next_model() -> str:
 async def get_answer(question: str):
     question_and_promt = [{
             "role": "system",
-            "content": GROQ_SYSTEM_PROMT
+            "content": GROQ_SYSTEM_PROMPT
         },
         {
             "role": "user",

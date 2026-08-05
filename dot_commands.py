@@ -1,9 +1,7 @@
 import random
 from aiogram import Bot
-import re
 from aiogram.types import Message
 from db_msgs import _userID_by_connID
-from html import escape
 import asyncio
 from config import(
     SPAM_DEFAULT_NUM,
@@ -13,42 +11,35 @@ from config import(
     ABOVE_ZALGO_SYMBOLS
 )
 from groq_settings import get_answer
+from blacklist import is_blacklisted
+
 
 active_spammers = set()
 
 async def dot_commands(message: Message, bot):
-    if not is_owner(message):
-        return 
-    # находиться ли юзер в спамерах
     owner_id = _userID_by_connID(message.business_connection_id)
-    if owner_id in active_spammers:
-        await del_dot_command(message, bot)
+    if not is_owner(message, owner_id):
         return
 
-    if message.text.startswith(".help"):
-        await help_dot_command(message, bot)
+    # находиться ли юзер в спамерах
+    if owner_id in active_spammers:
+        return
+
+    if is_blacklisted(owner_id):
+        await del_dot_command(message, bot)
+        await message.answer("⚠️ Вы находитесь в черном списке")
+        return
     
-    elif message.text.startswith(".random"):
-        await random_dot_command(message, bot)
+    for dot_command, handler in COMMANDS_WITH_HANDLERS.items():
+        if message.text.startswith(dot_command):
+            await del_dot_command(message, bot)
+            await handler(message, bot)
+            return
 
-    elif message.text.startswith(".gay"):
-        await gay_dot_command(message, bot)
-
-    elif message.text.startswith(".spam"):
+    if message.text.startswith(".spam"):
+        await del_dot_command(message, bot)
         await spam_dot_command(message, bot, owner_id)
-
-    elif message.text.startswith(".reg"):
-        await reg_dot_command(message, bot)
-
-    elif message.text.startswith(".zalgo"):
-        await zalgo_dot_command(message, bot)
-
-    elif message.text.startswith(".coin"):
-        await coin_dot_command(message, bot)
-
-    elif message.text.startswith(".ai"):
-        await ai_dot_command(message, bot)
-
+        return
     return
 
 
@@ -56,8 +47,6 @@ async def dot_commands(message: Message, bot):
 
 # .help
 async def help_dot_command(message: Message, bot: Bot):
-    await del_dot_command(message, bot)
-
     if message.text != ".help":
         await message.answer(f"⚠️ Для данной команды аргументы не требуются")
         return
@@ -95,7 +84,7 @@ async def random_dot_command(message: Message, bot: Bot):
     random_num = random.randint(min_val, max_val)
 
     # 3. Удаляем исходное сообщение владельца (".random")
-    await del_dot_command(message, bot)
+    
     
     # 4. Отправляем новое сообщение в этот же бизнес-чат
     await message.answer(f"Мне выпало число: <b>{random_num}</b>", parse_mode="HTML")
@@ -105,8 +94,6 @@ async def random_dot_command(message: Message, bot: Bot):
 # .gay
 async def gay_dot_command(message: Message, bot: Bot):
     random_num = random.randint(0, 100)
-
-    await del_dot_command(message, bot)
     if message.text != ".gay":
         await message.answer(f"⚠️ Для данной команды аргументы не требуются")
         return
@@ -122,7 +109,7 @@ async def spam_dot_command(message: Message, bot: Bot, owner_id) -> bool:
         spam_num = SPAM_DEFAULT_NUM
         text_to_send = ""
 
-        await del_dot_command(message, bot)
+        
 
         if len(args) == 1:
             await message.answer("⚠️ Использование: \n<code>.spam [кол-во] [текст]</code>", parse_mode="HTML")
@@ -164,7 +151,7 @@ async def spam_dot_command(message: Message, bot: Bot, owner_id) -> bool:
 # .reg
 async def reg_dot_command(message: Message, bot: Bot):
     args = message.text.split(maxsplit=1)
-    await del_dot_command(message, bot)
+    
     if len(args) == 1:
         await message.answer("⚠️ Использование: \n<code>.reg [текст]</code>", parse_mode="HTML")
         return
@@ -184,7 +171,7 @@ async def reg_dot_command(message: Message, bot: Bot):
 # .zalgo
 async def zalgo_dot_command(message: Message, bot: Bot):
     args = message.text.split(maxsplit=1)
-    await del_dot_command(message, bot)
+    
     if len(args) == 1:
         await message.answer("⚠️ Использование: \n<code>.zalgo [текст]</code>", parse_mode="HTML")
         return
@@ -200,7 +187,7 @@ async def zalgo_dot_command(message: Message, bot: Bot):
 
 # .coin
 async def coin_dot_command(message: Message, bot: Bot):
-    await del_dot_command(message, bot)
+    
     if message.text != ".coin":
         await message.answer(f"⚠️ Для данной команды аргументы не требуются")
         return
@@ -213,7 +200,7 @@ async def coin_dot_command(message: Message, bot: Bot):
 
 # .ai
 async def ai_dot_command(message: Message, bot: Bot):
-    await del_dot_command(message, bot)
+    
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
         await message.answer(f"⚠️ Для данной команды требуется вопрос")
@@ -233,8 +220,7 @@ async def ai_dot_command(message: Message, bot: Bot):
     await message.answer(answer, parse_mode="HTML")
 
 
-def is_owner(message):
-    owner_id = _userID_by_connID(message.business_connection_id)
+def is_owner(message, owner_id):
     if not owner_id or not message.from_user:
         return False
     if str(message.from_user.id) != owner_id:
@@ -253,3 +239,14 @@ async def del_dot_command(message: Message, bot: Bot):
     except Exception as e:
         print(f"Ошибка при удалении сообщения: {e}")
         return
+
+
+COMMANDS_WITH_HANDLERS ={
+    ".help": help_dot_command,
+    ".random": random_dot_command,
+    ".gay": gay_dot_command,
+    ".reg": reg_dot_command,
+    ".zalgo": zalgo_dot_command,
+    ".coin": coin_dot_command,
+    ".ai": ai_dot_command,
+}
