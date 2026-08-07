@@ -1,11 +1,14 @@
 import json
 import os
+import asyncio
+
+from aiogram import Bot
+
 from config import(
     DB_FILE,
     DATA_FOLDER
 )
-from aiogram import Bot
-import asyncio
+
 
 # лок на файл connections.json (он один на весь бот, поэтому лок глобальный)
 connections_lock = asyncio.Lock()

@@ -2,27 +2,33 @@ import asyncio
 import logging
 from html import escape
 import os
-from blacklist import is_blacklisted
+
+
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message, BusinessConnection, BusinessMessagesDeleted
-from config import(
+
+from config import (
     BOT_API_TOKEN,
     DATA_FOLDER,
     DELETED_MESSAGES_SHOWN,
     BLACKLIST_FILE_NAME
 )
-from db_conns import(
+from db_conns import (
     update_connections_data,
     restore_connection
 )
-from db_msgs import(
+from db_msgs import (
     save_msg,
     _userID_by_connID,
     load_data
 )
-from dot_commands import(
+from dot_commands import (
     dot_commands
 )
+from blacklist import (
+    is_blacklisted
+)
+
 
 os.makedirs(DATA_FOLDER, exist_ok=True)
 with open(os.path.join(DATA_FOLDER, BLACKLIST_FILE_NAME), "a", encoding="utf-8") as f:

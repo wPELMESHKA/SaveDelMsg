@@ -7,8 +7,6 @@ BOT_API_TOKEN = os.getenv("BOT_API_TOKEN")
 
 # несколько архивных каналов через запятую в .env — распределяем медиа по кругу,
 # чтобы не упираться в лимит 1 сообщение/сек на один канал
-CHANNELS_ARCHIVE_IDS = []
-
 # код который разделяет строку с запятыми на несколько елементов в списке
 archive_channel_ids_str = os.getenv("CHANNELS_ARCHIVE_IDS", "").replace(" ", "")
 if not archive_channel_ids_str:
@@ -22,7 +20,7 @@ GROQ_API_TOKEN = os.getenv("GROQ_API_TOKEN")
 GROQ_MODELS = [
     "llama-3.1-8b-instant", "llama-3.3-70b-versatile", "openai/gpt-oss-120b", 
     "openai/gpt-oss-20b", "qwen/qwen3.6-27b"
-    ]
+]
 
 GROQ_SYSTEM_PROMPT = """Ты — "GLENT AI". Твои правила ответа:
 1. Отвечай четко, по делу и понятно, без «воды» и гигантских текстов.

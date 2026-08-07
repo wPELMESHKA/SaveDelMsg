@@ -1,19 +1,23 @@
-from aiogram import Bot
-from aiogram.types import Message
 from html import escape
 import asyncio
 import json
 import logging
 import os
 from datetime import datetime, timezone
-from config import(
-    DATA_FOLDER, 
+
+from aiogram import Bot
+from aiogram.types import Message
+
+from config import (
+    DATA_FOLDER,
     CHANNELS_ARCHIVE_IDS
 )
-from db_conns import(
+from db_conns import (
     # функция загрузки информации из файла
     load_connections
 )
+
+
 # словарь с локами на .json файлы
 file_locks = {}
 

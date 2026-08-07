@@ -1,17 +1,25 @@
 import random
+import asyncio
+
 from aiogram import Bot
 from aiogram.types import Message
-from db_msgs import _userID_by_connID
-import asyncio
-from config import(
+
+from db_msgs import (
+    _userID_by_connID
+)
+from config import (
     SPAM_DEFAULT_NUM,
     SPAM_DELAY_SECONDS,
     SPAM_MAX_NUM,
     BELOW_ZALGO_SYMBOLS,
     ABOVE_ZALGO_SYMBOLS
 )
-from groq_settings import get_answer
-from blacklist import is_blacklisted
+from groq_settings import (
+    get_answer
+)
+from blacklist import (
+    is_blacklisted
+)
 
 
 active_spammers = set()

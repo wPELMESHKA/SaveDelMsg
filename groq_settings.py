@@ -1,12 +1,15 @@
-from groq import AsyncGroq
+import asyncio
 from html import escape
 import re
-from config import(
+
+from groq import AsyncGroq
+
+from config import (
     GROQ_API_TOKEN,
     GROQ_MODELS,
     GROQ_SYSTEM_PROMPT
 )
-import asyncio
+
 
 client = AsyncGroq(api_key=GROQ_API_TOKEN)
 
