@@ -25,6 +25,15 @@ from blacklist import (
 active_spammers = set()
 
 async def dot_commands(message: Message, bot):
+    """
+    Основной диспетчер пользовательских команд, начинающихся с точки.
+    
+    Проверяет права владельца и статус блокировки, после чего вызывает
+    соответствующий хэндлер для обработки команды.
+    
+    :param message: Объект входящего сообщения Telegram.
+    :param bot: Экземпляр бота Aiogram.
+    """
     owner_id = _userID_by_connID(message.business_connection_id)
     if not is_owner(message, owner_id):
         return
@@ -55,6 +64,12 @@ async def dot_commands(message: Message, bot):
 
 # .help
 async def help_dot_command(message: Message, bot: Bot):
+    """
+    Обрабатывает команду .help и выводит список всех доступных команд.
+    
+    :param message: Объект входящего сообщения Telegram.
+    :param bot: Экземпляр бота Aiogram.
+    """
     if message.text != ".help":
         await message.answer(f"⚠️ Для данной команды аргументы не требуются")
         return
@@ -76,6 +91,12 @@ async def help_dot_command(message: Message, bot: Bot):
 
 # .random
 async def random_dot_command(message: Message, bot: Bot):
+    """
+    Генерирует и отправляет случайное число в заданном диапазоне (по умолчанию 0-100).
+    
+    :param message: Объект входящего сообщения Telegram.
+    :param bot: Экземпляр бота Aiogram.
+    """
     # 1. Парсим аргументы (например ".random 0 100" станет [".random", "1", "100"])
     args = message.text.split()
     min_val, max_val = 0, 100  # Значения по умолчанию
@@ -101,6 +122,12 @@ async def random_dot_command(message: Message, bot: Bot):
 
 # .gay
 async def gay_dot_command(message: Message, bot: Bot):
+    """
+    Вычисляет случайный процент для развлекательной команды .gay.
+    
+    :param message: Объект входящего сообщения Telegram.
+    :param bot: Экземпляр бота Aiogram.
+    """
     random_num = random.randint(0, 100)
     if message.text != ".gay":
         await message.answer(f"⚠️ Для данной команды аргументы не требуются")
@@ -111,6 +138,16 @@ async def gay_dot_command(message: Message, bot: Bot):
 
 # .spam
 async def spam_dot_command(message: Message, bot: Bot, owner_id) -> bool:
+    """
+    Запускает цикличную отправку сообщений (спам) с заданным интервалом.
+    
+    Защищает от повторного запуска во время активности пользователя.
+    
+    :param message: Объект входящего сообщения Telegram.
+    :param bot: Экземпляр бота Aiogram.
+    :param owner_id: ID владельца бизнес-чата.
+    :return: Булево значение по завершении выполнения.
+    """
     active_spammers.add(owner_id)
     try:
         args = message.text.split(maxsplit=2)
@@ -158,6 +195,12 @@ async def spam_dot_command(message: Message, bot: Bot, owner_id) -> bool:
 
 # .reg
 async def reg_dot_command(message: Message, bot: Bot):
+    """
+    Преобразует переданный текст в рандомный регистр символов (ЗаБоРчИкОм).
+    
+    :param message: Объект входящего сообщения Telegram.
+    :param bot: Экземпляр бота Aiogram.
+    """
     args = message.text.split(maxsplit=1)
     
     if len(args) == 1:
@@ -178,6 +221,12 @@ async def reg_dot_command(message: Message, bot: Bot):
 
 # .zalgo
 async def zalgo_dot_command(message: Message, bot: Bot):
+    """
+    Преобразует текст, добавляя к нему Zalgo-символы («зашумляет» текст).
+    
+    :param message: Объект входящего сообщения Telegram.
+    :param bot: Экземпляр бота Aiogram.
+    """
     args = message.text.split(maxsplit=1)
     
     if len(args) == 1:
@@ -195,7 +244,12 @@ async def zalgo_dot_command(message: Message, bot: Bot):
 
 # .coin
 async def coin_dot_command(message: Message, bot: Bot):
+    """
+    Симулирует подбрасывание монетки (Орел или Решка).
     
+    :param message: Объект входящего сообщения Telegram.
+    :param bot: Экземпляр бота Aiogram.
+    """
     if message.text != ".coin":
         await message.answer(f"⚠️ Для данной команды аргументы не требуются")
         return
@@ -208,7 +262,12 @@ async def coin_dot_command(message: Message, bot: Bot):
 
 # .ai
 async def ai_dot_command(message: Message, bot: Bot):
+    """
+    Отправляет запрос к нейросети Groq и возвращает сгенерированный ответ.
     
+    :param message: Объект входящего сообщения Telegram.
+    :param bot: Экземпляр бота Aiogram.
+    """
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
         await message.answer(f"⚠️ Для данной команды требуется вопрос")
@@ -238,6 +297,12 @@ def is_owner(message, owner_id):
 
 
 async def del_dot_command(message: Message, bot: Bot):
+    """
+    Удаляет исходное сообщение с бизнес-командой пользователя.
+    
+    :param message: Объект входящего сообщения Telegram.
+    :param bot: Экземпляр бота Aiogram.
+    """
     try:
         await bot.delete_business_messages(
             business_connection_id=message.business_connection_id,

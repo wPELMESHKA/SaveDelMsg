@@ -7,7 +7,7 @@ from config import(
 cache = {"last_update_time": None, "blacklist_ids": set()}
 
 def is_blacklisted(user_id):
-    blacklist_path = os.path.join(DATA_FOLDER, BLACKLIST_FILE_NAME)
+    blacklist_path = os.path.join(DATA_FOLDER, f"{DATA_FOLDER}_sub_folder", BLACKLIST_FILE_NAME)
 
     if not os.path.exists(blacklist_path):
         print("Нету файла черного списка")

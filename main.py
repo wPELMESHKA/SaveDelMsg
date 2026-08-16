@@ -14,7 +14,8 @@ from config import (
     BLACKLIST_FILE_NAME
 )
 from db_conns import (
-    update_connections_data,
+    remove_connection,
+    add_connection,
     restore_connection
 )
 from db_msgs import (
@@ -31,8 +32,11 @@ from blacklist import (
 
 
 os.makedirs(DATA_FOLDER, exist_ok=True)
-with open(os.path.join(DATA_FOLDER, BLACKLIST_FILE_NAME), "a", encoding="utf-8") as f:
+os.makedirs(os.path.join(DATA_FOLDER, f"{DATA_FOLDER}_sub_folder"), exist_ok=True)
+with open(os.path.join(DATA_FOLDER, f"{DATA_FOLDER}_sub_folder", BLACKLIST_FILE_NAME), "a", encoding="utf-8") as f:
     pass
+
+
 
 bot = Bot(token=BOT_API_TOKEN)
 dp = Dispatcher()
@@ -42,12 +46,11 @@ logging.basicConfig(level=logging.INFO)
 # выполняеться когда кто то включает/выключает или изменяет настройки бота
 @dp.business_connection()
 async def on_business_connection(connection: BusinessConnection) -> None:
-    if is_blacklisted(connection.user.id):
-        return
-    
-    conn = connection.id
-    user = connection.user.id
-    await update_connections_data(conn, user)
+    # Проверяем добавлено ли подключение или удалено
+    if connection.is_enabled:
+        await add_connection(connection.id, connection.user.id)
+    else:
+        await remove_connection(connection.id)
 
 
 @dp.business_message()
@@ -56,8 +59,7 @@ async def on_business_message(message: Message) -> None:
         await restore_connection(message.business_connection_id, bot)
 
     if message.text and message.text.startswith("."):
-        if await dot_commands(message, bot):
-            return
+        await dot_commands(message, bot)
 
     await save_msg(message, bot)
 
@@ -83,15 +85,15 @@ async def on_deleted_business_message(event: BusinessMessagesDeleted):
     for msg_id in event.message_ids:
         if not data.get(str(msg_id)):
             continue
-        else: 
-            msgs_to_show.append(msg_id)
+        elif data[str(msg_id)]["name"].endswith("(Собеседник)"):
+                msgs_to_show.append(msg_id)
     
     for msg_id in msgs_to_show[:DELETED_MESSAGES_SHOWN]:
         await bot.send_message(
             chat_id=int(userID),
             text=(
                 f"<b>Сообщение удалено в чате с:</b>\n"
-                f"<code>{escape(data[str(msg_id)]['partner_name'])}</code> <b>(</b><code>{chatID}</code><b>)</b>\n"
+                f"<code>{escape(data[str(msg_id)]['name'])}</code> <b>(</b><code>{chatID}</code><b>)</b>\n"
                 f"<b>Сообщение было отправлено в:</b>\n"
                 f"{escape(data[str(msg_id)]['time'])} (UTC+0)"
                 ),

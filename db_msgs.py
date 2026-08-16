@@ -42,9 +42,9 @@ async def save_msg(message: Message, bot: Bot):
     # когда в личку пишут от имени канала то message.from_user.id вообще не будет и код упадет 
     if message.from_user:
         if userID == str(message.from_user.id):
-            return
+            name = f"{message.from_user.full_name} (Владелец акаунта)"
         else: 
-            partner_name = message.from_user.full_name
+            name = f"{message.from_user.full_name} (Собеседник)"
     else:
         return
 
@@ -63,7 +63,7 @@ async def save_msg(message: Message, bot: Bot):
     # 1. Обычный текст
     if message.text:
         new_msg = {
-            "partner_name":     partner_name,
+            "name":             name,
             "channel_id":       None,
             "channel_msg_id":   None,
             "text":             escape(message.text),
@@ -75,7 +75,7 @@ async def save_msg(message: Message, bot: Bot):
     # 2. Интерактивный  эмодзи (🎲/🎯/🏀/⚽/🎳/🎰)
     elif message.dice:
         new_msg = {
-                "partner_name":     partner_name,
+                "name":             name,
                 "channel_id":       None,
                 "channel_msg_id":   None,
                 "text":             f"Интерактивный эмодзи: {message.dice.emoji} (Значение: {message.dice.value})",
@@ -87,7 +87,7 @@ async def save_msg(message: Message, bot: Bot):
     # 3. Геолокация
     elif message.location:
         new_msg = {
-                "partner_name":     partner_name,
+                "name":             name,
                 "channel_id":       None,
                 "channel_msg_id":   None,
                 "text": (
@@ -104,7 +104,7 @@ async def save_msg(message: Message, bot: Bot):
     # 4. Контакт (Номер телефона)
     elif message.contact:
         new_msg = {
-                "partner_name":     partner_name,
+                "name":             name,
                 "channel_id":       None,
                 "channel_msg_id":   None,
                 "text":(             
@@ -118,7 +118,7 @@ async def save_msg(message: Message, bot: Bot):
     # 5. Место (Venue)
     elif message.venue:
         new_msg = {
-                "partner_name":     partner_name,
+                "name":             name,
                 "channel_id":       None,
                 "channel_msg_id":   None,
                 "text": (
@@ -195,7 +195,7 @@ async def save_msg(message: Message, bot: Bot):
                 # даже для неизвестного типа сохраняем "заглушку",
                 # чтобы событие удаления не потерялось молча
                 new_msg = {
-                    "partner_name":     partner_name,
+                    "name":             name,
                     "channel_id":       None,
                     "channel_msg_id":   None,
                     "text":             "Сообщение неизвестного типа (не удалось сохранить содержимое)",
@@ -208,7 +208,7 @@ async def save_msg(message: Message, bot: Bot):
             # сохраняем запись без архивной копии, чтобы хотя бы факт
             # сообщения (и его последующее удаление) не потерялся
             new_msg = {
-                "partner_name":     partner_name,
+                "name":             name,
                 "channel_id":       None,
                 "channel_msg_id":   None,
                 "text":             (caption or "Медиафайл (не удалось сохранить в архив)"),
@@ -219,7 +219,7 @@ async def save_msg(message: Message, bot: Bot):
 
 
         new_msg = {
-            "partner_name":     partner_name,
+            "name":             name,
             "channel_id":       saved_in_channel.chat.id,
             "channel_msg_id":   saved_in_channel.message_id,
             "text":             caption,
@@ -232,9 +232,9 @@ async def save_msg(message: Message, bot: Bot):
 
 def _userID_by_connID(conn):
     data = load_connections()
-    if conn not in data:
+    if str(conn) not in data:
         return None
-    return data[conn]
+    return data[str(conn)]
 
 
 
