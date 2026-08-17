@@ -1,8 +1,10 @@
 import random
 import asyncio
+from html import escape
 
 from aiogram import Bot
 from aiogram.types import Message
+import aiohttp
 
 from db_msgs import (
     _userID_by_connID
@@ -46,14 +48,16 @@ async def dot_commands(message: Message, bot):
         await del_dot_command(message, bot)
         await message.answer("⚠️ Вы находитесь в черном списке")
         return
+
+    command_word = message.text.split()[0] or None
     
     for dot_command, handler in COMMANDS_WITH_HANDLERS.items():
-        if message.text.startswith(dot_command):
+        if command_word == dot_command:
             await del_dot_command(message, bot)
             await handler(message, bot)
             return
 
-    if message.text.startswith(".spam"):
+    if command_word == ".spam":
         await del_dot_command(message, bot)
         await spam_dot_command(message, bot, owner_id)
         return
@@ -83,7 +87,8 @@ async def help_dot_command(message: Message, bot: Bot):
         "• <code>.reg [текст]</code> — Сделать текст СлУчАйНыМ рЕгИсТрОм\n"
         "• <code>.zalgo [текст]</code> — Сделать текст сломанным (лимит символов 1000)\n"
         "• <code>.spam [кол-во] [текст]</code> — Спам текстом 1 сообщение/с (по умолчанию 5 раз, максимум 50)\n"
-        "• <code>.ai [текст]</code> — Задать вопрос ИИ (лимит символов 200)",
+        "• <code>.ai [текст]</code> — Задать вопрос ИИ (лимит символов 200)\n"
+        "• <code>.tt [ссылка на TikTok]</code> — Отправить видео с TikTok без водяного знака\n",
         parse_mode="HTML"
         )
     return
@@ -287,10 +292,64 @@ async def ai_dot_command(message: Message, bot: Bot):
     await message.answer(answer, parse_mode="HTML")
 
 
+# .tt
+async def tt_dot_command(message: Message, bot: Bot):
+    """
+    Получает прямую ссылку на видео TikTok через API TikWM.
+    
+    :param message: Объект входящего сообщения Telegram.
+    :param bot: Экземпляр бота Aiogram.
+    """
+    args = message.text.split(maxsplit=1)
+    if len(args) != 2:
+        await message.answer(f"⚠️ Использование: \n<code>.tt [ссылка на TikTok]</code>", parse_mode="HTML")
+        return
+
+    temp_msg = await message.answer("⏳ Запрашиваю видео из TikTok...")
+    tt_data = await _get_tt_link(args[1])
+    if not tt_data:
+        try:
+            await bot.delete_business_messages(
+            business_connection_id=message.business_connection_id,
+            message_ids=[temp_msg.message_id]
+        )
+        except Exception as e:
+            print(f"Ошибка при удалении статусного сообщения: {e}")
+        await message.answer("⚠️ Не удалось получить видео. Проверьте ссылку.")
+        return
+
+    tiktok_link, title = tt_data
+    caption = f"Описание видео: {escape(title)}\n<a href='{tiktok_link}'>Прямая ссылка на mp4 без водяного знака</a>"
+
+    try:
+        await bot.delete_business_messages(
+            business_connection_id=message.business_connection_id,
+            message_ids=[temp_msg.message_id]
+        )
+    except Exception as e:
+        print(f"Ошибка при удалении статусного сообщения: {e}")
+
+    try:
+        await bot.send_video(
+            chat_id=message.chat.id,
+            video=tiktok_link,
+            caption=caption,
+            parse_mode="HTML",
+            business_connection_id=message.business_connection_id
+        )
+    except Exception as e:
+        print(f"Ошибка при отправке видео: {e}")
+        await message.answer(
+            f"⚠️ Не удалось отправить видео. Возможно оно приватное или больше 20 мб.\n"
+            f"<a href='{tiktok_link}'>Прямая ссылка на скачивание</a>", parse_mode="HTML"
+        )
+
+
+
 def is_owner(message, owner_id):
     if not owner_id or not message.from_user:
         return False
-    if str(message.from_user.id) != owner_id:
+    if str(message.from_user.id) != str(owner_id):
         return False
     return True
 
@@ -313,6 +372,34 @@ async def del_dot_command(message: Message, bot: Bot):
         print(f"Ошибка при удалении сообщения: {e}")
         return
 
+async def _get_tt_link(tiktok_url: str) -> tuple[str, str] | None:
+    """
+    Получает прямую ссылку на видео TikTok через API TikWM.
+    
+    :param tiktok_url: Ссылка на видео TikTok.
+    :return: Кортеж из прямой ссылки на mp4 и описания видео или None в случае ошибки.
+    """
+    api_url = "https://www.tikwm.com/api/"
+    payload = {"url": tiktok_url, "hd": 1}
+
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.post(api_url, data=payload) as response:
+                res_data = await response.json()
+
+                if res_data.get("code") == 0:
+                    video_url = res_data["data"]["play"]
+                    if video_url.startswith("/"):
+                        video_url = "https://www.tikwm.com" + video_url
+                    return video_url, res_data['data'].get('title', 'Без описания')
+                else:
+                    print(
+                        f"❌ Ошибка API: {res_data.get('msg', 'Неизвестная ошибка')}"
+                    )
+                    return None
+        except Exception as e:
+            print(f"❌ Ошибка запроса: {e}")
+            return None
 
 COMMANDS_WITH_HANDLERS ={
     ".help": help_dot_command,
@@ -322,4 +409,5 @@ COMMANDS_WITH_HANDLERS ={
     ".zalgo": zalgo_dot_command,
     ".coin": coin_dot_command,
     ".ai": ai_dot_command,
+    ".tt": tt_dot_command,
 }
