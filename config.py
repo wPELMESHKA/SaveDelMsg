@@ -8,18 +8,18 @@ BOT_API_TOKEN = os.getenv("BOT_API_TOKEN")
 # несколько архивных каналов через запятую в .env — распределяем медиа по кругу,
 # чтобы не упираться в лимит 1 сообщение/сек на один канал
 # код который разделяет строку с запятыми на несколько елементов в списке
-archive_channel_ids_str = os.getenv("CHANNELS_ARCHIVE_IDS", "").replace(" ", "")
-if not archive_channel_ids_str:
+CHANNELS_ARCHIVE_IDS = os.getenv("CHANNELS_ARCHIVE_IDS", "").replace(" ", "").split(",")
+if not CHANNELS_ARCHIVE_IDS or CHANNELS_ARCHIVE_IDS == [""]:
     raise RuntimeError(
         "CHANNELS_ARCHIVE_IDS не задан в .env — укажи хотя бы один ID канала для архива медиа"
     )
-CHANNELS_ARCHIVE_IDS = archive_channel_ids_str.split(",")
 
 GROQ_API_TOKEN = os.getenv("GROQ_API_TOKEN")
 
 GROQ_MODELS = [
-    "llama-3.1-8b-instant", "llama-3.3-70b-versatile", "openai/gpt-oss-120b", 
-    "openai/gpt-oss-20b", "qwen/qwen3.6-27b"
+    "openai/gpt-oss-120b", 
+    "openai/gpt-oss-20b", 
+    "qwen/qwen3.6-27b"
 ]
 
 GROQ_SYSTEM_PROMPT = """Ты — "GLENT AI". Твои правила ответа:
@@ -42,16 +42,11 @@ DELETED_MESSAGES_SHOWN = 10
 # Папка, где хранятся файлы истории (по одному json-файлу на chat_id + connections.json)
 DATA_FOLDER = "data"
 
-DB_FILE = "connections.json"
-
 SPAM_DELAY_SECONDS = 1.0
 
 SPAM_DEFAULT_NUM = 5
 
 SPAM_MAX_NUM = 50
-
-BLACKLIST_FILE_NAME = "blacklist.txt"
-
 
 # zalgo символы
 ABOVE_ZALGO_SYMBOLS = [

@@ -6,12 +6,11 @@ from aiogram import Bot
 from aiogram.types import Message
 import aiohttp
 
-from db_msgs import (
-    _userID_by_connID
+from db_conns import (
+    get_user_id_by_conn_id
 )
 from config import (
     SPAM_DEFAULT_NUM,
-    SPAM_DELAY_SECONDS,
     SPAM_MAX_NUM,
     BELOW_ZALGO_SYMBOLS,
     ABOVE_ZALGO_SYMBOLS
@@ -36,7 +35,7 @@ async def dot_commands(message: Message, bot):
     :param message: Объект входящего сообщения Telegram.
     :param bot: Экземпляр бота Aiogram.
     """
-    owner_id = _userID_by_connID(message.business_connection_id)
+    owner_id = await get_user_id_by_conn_id(message.business_connection_id)
     if not is_owner(message, owner_id):
         return
 
@@ -142,7 +141,7 @@ async def gay_dot_command(message: Message, bot: Bot):
 
 
 # .spam
-async def spam_dot_command(message: Message, bot: Bot, owner_id) -> bool:
+async def spam_dot_command(message: Message, bot: Bot, owner_id) -> None:
     """
     Запускает цикличную отправку сообщений (спам) с заданным интервалом.
     
@@ -151,7 +150,7 @@ async def spam_dot_command(message: Message, bot: Bot, owner_id) -> bool:
     :param message: Объект входящего сообщения Telegram.
     :param bot: Экземпляр бота Aiogram.
     :param owner_id: ID владельца бизнес-чата.
-    :return: Булево значение по завершении выполнения.
+    :return: None.
     """
     active_spammers.add(owner_id)
     try:
@@ -191,7 +190,7 @@ async def spam_dot_command(message: Message, bot: Bot, owner_id) -> bool:
         # Цикл отправки
         for _ in range(spam_num):
             await message.answer(text_to_send)
-            await asyncio.sleep(SPAM_DELAY_SECONDS)
+            await asyncio.sleep(1.0)
     finally:
         active_spammers.discard(owner_id)
 

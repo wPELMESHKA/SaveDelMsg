@@ -1,136 +1,124 @@
 from html import escape
 import asyncio
-import json
 import logging
 import os
 from datetime import datetime, timezone
 
 from aiogram import Bot
 from aiogram.types import Message
+import aiosqlite
 
 from config import (
     DATA_FOLDER,
     CHANNELS_ARCHIVE_IDS
 )
 from db_conns import (
-    # функция загрузки информации из файла
-    load_connections
+    get_user_id_by_conn_id
 )
 
 
-# словарь с локами на .json файлы
-file_locks = {}
+MESSAGES_FILE_PATH = os.path.join(DATA_FOLDER, "messages.db")
 
-channel = 0
+channel_index = 0
 channel_lock = asyncio.Lock()
 async def get_next_channel() -> str:
-    # берет текущий канал и переключает на следуюющий с локом
-    global channel
+    # берет текущий канал и переключает на следуюший с локом
+    global channel_index
     async with channel_lock:
-        chosen_channel = CHANNELS_ARCHIVE_IDS[channel]
-        channel = (channel + 1) % len(CHANNELS_ARCHIVE_IDS)
+        chosen_channel = CHANNELS_ARCHIVE_IDS[channel_index]
+        channel_index = (channel_index + 1) % len(CHANNELS_ARCHIVE_IDS)
         return chosen_channel
 
 
+
+# инициализирует таблицу если она не существует
+async def init_messages_table():
+    async with aiosqlite.connect(MESSAGES_FILE_PATH) as db:
+        await db.execute("PRAGMA journal_mode=WAL")
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS messages (
+                user_id TEXT,
+                chat_id TEXT,
+                msg_id TEXT,
+                name TEXT,
+                channel_id TEXT,
+                channel_msg_id TEXT,
+                text TEXT,
+                time TEXT,
+                PRIMARY KEY (user_id, chat_id, msg_id)
+            )
+        """)
+
+        await db.commit()
+
+
+
 # проверка на все типы сообщений
-async def save_msg(message: Message, bot: Bot):
-    # получаем айди владельца акаунта через вспомогательную функцию
-    userID = _userID_by_connID(message.business_connection_id)
-    if userID is None:
+async def data_preparation(message: Message, bot: Bot):
+    # получаем айди владельца акаунта
+    user_id = await get_user_id_by_conn_id(message.business_connection_id)
+    if user_id is None:
         return
 
     # когда в личку пишут от имени канала то message.from_user.id вообще не будет и код упадет 
     if message.from_user:
-        if userID == str(message.from_user.id):
-            name = f"{message.from_user.full_name} (Владелец акаунта)"
+        if user_id == str(message.from_user.id):
+            name = f"{message.from_user.full_name} (Владелец аккаунта)"
+            return 
         else: 
             name = f"{message.from_user.full_name} (Собеседник)"
     else:
-        return
-
-    # создаем папку если ее еще нету 
-    os.makedirs(os.path.join(DATA_FOLDER, userID), exist_ok=True)
+        name = "Неизвестный пользователь (от имени канала)"
 
     # ID собеседника
-    chat_id: int = message.chat.id
+    chat_id = str(message.chat.id)
     # ID сообщения
-    msg_id: int = message.message_id
+    msg_id = str(message.message_id)
     # Подпись к фото или видео (будет str или None)
     caption = message.caption
     
-
+    time = datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
 
     # 1. Обычный текст
     if message.text:
-        new_msg = {
-            "name":             name,
-            "channel_id":       None,
-            "channel_msg_id":   None,
-            "text":             escape(message.text),
-            "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
-        }
-        await _rewrite_data(userID, chat_id, msg_id, new_msg)
+        text = escape(message.text)
+        await save_msg((user_id, chat_id, msg_id, name, None, None, text, time))
 
 
     # 2. Интерактивный  эмодзи (🎲/🎯/🏀/⚽/🎳/🎰)
     elif message.dice:
-        new_msg = {
-                "name":             name,
-                "channel_id":       None,
-                "channel_msg_id":   None,
-                "text":             f"Интерактивный эмодзи: {message.dice.emoji} (Значение: {message.dice.value})",
-                "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
-            }
-        await _rewrite_data(userID, chat_id, msg_id, new_msg)
+        text = f"Интерактивный эмодзи: {message.dice.emoji} (Значение: {message.dice.value})"
+        await save_msg((user_id, chat_id, msg_id, name, None, None, text, time))
 
         
     # 3. Геолокация
     elif message.location:
-        new_msg = {
-                "name":             name,
-                "channel_id":       None,
-                "channel_msg_id":   None,
-                "text": (
-                    f"Геолокация:\n"
-                    f"Координата Х (Долгота): {message.location.longitude}\n"
-                    f"Координата Y (Широта): {message.location.latitude}\n"
-                    f'<a href="https://maps.google.com/?q={message.location.latitude},{message.location.longitude}">Открыть на Google картах</a>'
-                ),
-                "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")   
-            }
-        await _rewrite_data(userID, chat_id, msg_id, new_msg)
+        text = (
+            f"Геолокация:\n"
+            f"Координата Х (Долгота): {message.location.longitude}\n"
+            f"Координата Y (Широта): {message.location.latitude}\n"
+            f'<a href="https://maps.google.com/?q={message.location.latitude},{message.location.longitude}">Открыть на Google картах</a>'
+        )
+        await save_msg((user_id, chat_id, msg_id, name, None, None, text, time))
 
 
     # 4. Контакт (Номер телефона)
     elif message.contact:
-        new_msg = {
-                "name":             name,
-                "channel_id":       None,
-                "channel_msg_id":   None,
-                "text":(             
-                    f"Имя контакта: {escape(message.contact.full_name)}\n"
-                    f"Номер телефона контакта: {escape(message.contact.phone_number)}"
-                    ),
-                "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
-            }
-        await _rewrite_data(userID, chat_id, msg_id, new_msg)
+        text = (
+            f"Имя контакта: {escape(message.contact.full_name)}\n"
+            f"Номер телефона контакта: {escape(message.contact.phone_number)}"
+        )
+        await save_msg((user_id, chat_id, msg_id, name, None, None, text, time))
 
     # 5. Место (Venue)
     elif message.venue:
-        new_msg = {
-                "name":             name,
-                "channel_id":       None,
-                "channel_msg_id":   None,
-                "text": (
-                    f"Место: {escape(message.venue.title)}\n"
-                    f"Адрес: {escape(message.venue.address)}\n"
-                    f'<a href="https://maps.google.com/?q={message.venue.location.latitude},{message.venue.location.longitude}">Открыть на Google картах</a>'
-                    ),
-                "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
-            }
-        await _rewrite_data(userID, chat_id, msg_id, new_msg)
- 
- 
+        text = (
+            f"Место: {escape(message.venue.title)}\n"
+            f"Адрес: {escape(message.venue.address)}\n"
+            f'<a href="https://maps.google.com/?q={message.venue.location.latitude},{message.venue.location.longitude}">Открыть на Google картах</a>'
+        )
+        await save_msg((user_id, chat_id, msg_id, name, None, None, text, time))
+
 
     # все медиа которые надо отправлять в канал
     else:    
@@ -192,95 +180,40 @@ async def save_msg(message: Message, bot: Bot):
             # 14. Неопознанный / новый тип
             else:
                 print("Неопознаный тип сообщения")
-                # даже для неизвестного типа сохраняем "заглушку",
-                # чтобы событие удаления не потерялось молча
-                new_msg = {
-                    "name":             name,
-                    "channel_id":       None,
-                    "channel_msg_id":   None,
-                    "text":             "Сообщение неизвестного типа (не удалось сохранить содержимое)",
-                    "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
-                }
-                await _rewrite_data(userID, chat_id, msg_id, new_msg)
+                text = "Сообщение неизвестного типа (не удалось сохранить содержимое)"
+                await save_msg((user_id, chat_id, msg_id, name, None, None, text, time))
                 return
         except Exception as e:
             logging.exception(f"Не удалось отправить медиа в архивный канал: {e}")
-            # сохраняем запись без архивной копии, чтобы хотя бы факт
-            # сообщения (и его последующее удаление) не потерялся
-            new_msg = {
-                "name":             name,
-                "channel_id":       None,
-                "channel_msg_id":   None,
-                "text":             (caption or "Медиафайл (не удалось сохранить в архив)"),
-                "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
-            }
-            await _rewrite_data(userID, chat_id, msg_id, new_msg)
+            text = caption or "Медиафайл (не удалось сохранить в архив)"
+            await save_msg((user_id, chat_id, msg_id, name, None, None, text, time))
             return
 
-
-        new_msg = {
-            "name":             name,
-            "channel_id":       saved_in_channel.chat.id,
-            "channel_msg_id":   saved_in_channel.message_id,
-            "text":             caption,
-            "time":             datetime.now(timezone.utc).strftime("%H:%M %d.%m.%Y")
-            }
-        await _rewrite_data(userID, chat_id, msg_id, new_msg)
+        await save_msg((user_id, chat_id, msg_id, name, str(saved_in_channel.chat.id), str(saved_in_channel.message_id), caption, time))
 
 
+# сохраняет новое сообщение в messages
+async def save_msg(data: tuple) -> None:
+    async with aiosqlite.connect(MESSAGES_FILE_PATH) as db:
 
+        await db.execute("""
+            INSERT OR REPLACE INTO messages (user_id, chat_id, msg_id, name, channel_id, channel_msg_id, text, time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, data)
 
-def _userID_by_connID(conn):
-    data = load_connections()
-    if str(conn) not in data:
-        return None
-    return data[str(conn)]
+        await db.commit()
 
-
-
-
-# функция загрузки данных из файла
-def load_data(user_id, chat_id) -> dict:
-    # если файла нету возращаем пустой список
-    if not os.path.exists(os.path.join(DATA_FOLDER, user_id, f"{chat_id}.json")):
-        return {}
-    # открываем файл в режиме чтения ("r"), с кодировкой utf-8
-    with open(os.path.join(DATA_FOLDER, user_id, f"{chat_id}.json"), "r", encoding="utf-8") as f:
-        try:
-            return json.load(f)
-        except json.JSONDecodeError:
-            return {}
-
-
-
-
-async def _rewrite_data(userID, chat_id, msg_id, new_msg):
-    lock = get_file_lock(userID, chat_id)
-
-    async with lock:
-        temp_path = os.path.join(DATA_FOLDER, userID, f"_{chat_id}.json")
-        main_path = os.path.join(DATA_FOLDER, userID, f"{chat_id}.json")
-
-
-        # получаем данные с текущего файла
-        data = load_data(userID, chat_id)
-
-        # добавляем в словарь новое сообщение
-        data[str(msg_id)] = new_msg
-
-        # сохраняем готовый файл
-        with open(temp_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-
-        # удаляет main_path если он был, переносит файл из путя temp_path в main_path
-        os.replace(temp_path, main_path)
-
-
-
-
-def get_file_lock(user_id: str, chat_id: int) -> asyncio.Lock:
-    # получаем лок для конкретного чата
-    key = f"{user_id}_{chat_id}"
-    if key not in file_locks:
-        file_locks[key] = asyncio.Lock()
-    return file_locks[key]
+async def get_msg(user_id: str, chat_id: str, msg_id: str) -> tuple | None:
+    async with aiosqlite.connect(MESSAGES_FILE_PATH) as db:
+        
+        async with db.execute("""
+            SELECT *
+            FROM messages
+            WHERE user_id = ? AND chat_id = ? AND msg_id = ?
+        """, (user_id, chat_id, msg_id)) as buffer:
+            
+            msg = await buffer.fetchone()  # Достаем 1 строку
+            if msg:
+                return msg  # Возвращаем всю строку
+            
+            return None
