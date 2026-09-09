@@ -26,12 +26,17 @@ async def get_ai_answer(bot, message, question):
                     full_text += chunk.get("response", "")
 
                     now = asyncio.get_event_loop().time()
-                    if now - last_edit >= 1:
-                        await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text=full_text, business_connection_id=message.business_connection_id)
-                        last_edit = now
-
-                    if chunk.get("done"):
-                        await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text=full_text, business_connection_id=message.business_connection_id)
+                    if (now - last_edit >= 1.2 or chunk.get("done")) and full_text.strip():
+                        try:
+                            await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text=full_text, business_connection_id=message.business_connection_id)
+                        except Exception as e:
+                            error_str = str(e).lower()
+                            # Если это просто "сообщение не изменилось", то это не ошибка — игнорируем
+                            if "message is not modified" in error_str:
+                                pass
+                            else:
+                                # Любую другую ошибку выводим в консоль
+                                print(f"[Telegram Edit Error]: {e}")
 
 
 
