@@ -18,7 +18,7 @@ async def get_ai_answer(bot, message, question):
     last_edit = 0
     async with lock:
         async with aiohttp.ClientSession() as session:
-            async with session.post(AI_LOCAL_URL, json={"model": AI_MODEL, "system": AI_SYSTEM_PROMPT, "prompt": question, "stream": True}) as resp:
+            async with session.post(AI_LOCAL_URL, json={"model": AI_MODEL, "system": AI_SYSTEM_PROMPT, "prompt": question, "stream": True, "keep_alive": -1}) as resp:
                 async for line in resp.content:
                     if not line.strip():
                         continue
