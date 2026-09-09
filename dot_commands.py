@@ -15,8 +15,8 @@ from config import (
     BELOW_ZALGO_SYMBOLS,
     ABOVE_ZALGO_SYMBOLS
 )
-from groq_settings import (
-    get_answer
+from ai_settings import (
+    get_ai_answer
 )
 from blacklist import (
     is_blacklisted
@@ -44,20 +44,17 @@ async def dot_commands(message: Message, bot):
         return
 
     if is_blacklisted(owner_id):
-        await del_dot_command(message, bot)
-        await message.answer("⚠️ Вы находитесь в черном списке")
+        await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text="⚠️ Вы находитесь в черном списке", business_connection_id=message.business_connection_id)
         return
 
     command_word = message.text.split()[0] or None
     
     for dot_command, handler in COMMANDS_WITH_HANDLERS.items():
         if command_word == dot_command:
-            await del_dot_command(message, bot)
             await handler(message, bot)
             return
 
     if command_word == ".spam":
-        await del_dot_command(message, bot)
         await spam_dot_command(message, bot, owner_id)
         return
     return
@@ -74,10 +71,10 @@ async def help_dot_command(message: Message, bot: Bot):
     :param bot: Экземпляр бота Aiogram.
     """
     if message.text != ".help":
-        await message.answer(f"⚠️ Для данной команды аргументы не требуются")
+        await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text=f"⚠️ Для данной команды аргументы не требуются", business_connection_id=message.business_connection_id)
         return
 
-    await message.answer(
+    await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text=
         f"<b>🛠 Список доступных команд:</b>\n\n"
         "• <code>.help</code> — Показать это меню с инструкцией\n"
         "• <code>.random [мин] [макс]</code> — Число в заданном диапазоне (по умолчанию 0, 100)\n"
@@ -86,9 +83,10 @@ async def help_dot_command(message: Message, bot: Bot):
         "• <code>.reg [текст]</code> — Сделать текст СлУчАйНыМ рЕгИсТрОм\n"
         "• <code>.zalgo [текст]</code> — Сделать текст сломанным (лимит символов 1000)\n"
         "• <code>.spam [кол-во] [текст]</code> — Спам текстом 1 сообщение/с (по умолчанию 5 раз, максимум 50)\n"
-        "• <code>.ai [текст]</code> — Задать вопрос ИИ (лимит символов 200)\n"
+        "• <code>.ai [текст]</code> — Задать вопрос ИИ без цензуры\n"
         "• <code>.tt [ссылка на TikTok]</code> — Отправить видео с TikTok без водяного знака\n",
-        parse_mode="HTML"
+        parse_mode="HTML",
+        business_connection_id=message.business_connection_id
         )
     return
 
@@ -115,12 +113,9 @@ async def random_dot_command(message: Message, bot: Bot):
 
     # 2. Генерируем случайное число
     random_num = random.randint(min_val, max_val)
-
-    # 3. Удаляем исходное сообщение владельца (".random")
-    
     
     # 4. Отправляем новое сообщение в этот же бизнес-чат
-    await message.answer(f"Мне выпало число: <b>{random_num}</b>", parse_mode="HTML")
+    await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text=f"Мне выпало число: <b>{random_num}</b>", parse_mode="HTML", business_connection_id=message.business_connection_id)
     return
 
 
@@ -134,9 +129,9 @@ async def gay_dot_command(message: Message, bot: Bot):
     """
     random_num = random.randint(0, 100)
     if message.text != ".gay":
-        await message.answer(f"⚠️ Для данной команды аргументы не требуются")
+        await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text=f"⚠️ Для данной команды аргументы не требуются", business_connection_id=message.business_connection_id)
         return
-    await message.answer(f"🏳️‍🌈Я гей на <b>{random_num}%</b>🏳️‍🌈", parse_mode="HTML")
+    await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text=f"🏳️‍🌈Я гей на <b>{random_num}%</b>🏳️‍🌈", parse_mode="HTML", business_connection_id=message.business_connection_id)
     return
 
 
@@ -161,7 +156,7 @@ async def spam_dot_command(message: Message, bot: Bot, owner_id) -> None:
         
 
         if len(args) == 1:
-            await message.answer("⚠️ Использование: \n<code>.spam [кол-во] [текст]</code>", parse_mode="HTML")
+            await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text="⚠️ Использование: \n<code>.spam [кол-во] [текст]</code>", parse_mode="HTML", business_connection_id=message.business_connection_id)
             return
 
 
@@ -176,7 +171,7 @@ async def spam_dot_command(message: Message, bot: Bot, owner_id) -> None:
 
                 # Если количество < 1 или больше максимума — выводим предупреждение
                 if spam_num < 1 or spam_num > SPAM_MAX_NUM:
-                    await message.answer("⚠️ Использование: \n<code>.spam [кол-во] [текст]</code>", parse_mode="HTML")
+                    await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text="⚠️ Использование: \n<code>.spam [кол-во] [текст]</code>", parse_mode="HTML", business_connection_id=message.business_connection_id)
                     return
                 
                 text_to_send = args[2]
@@ -189,7 +184,7 @@ async def spam_dot_command(message: Message, bot: Bot, owner_id) -> None:
 
         # Цикл отправки
         for _ in range(spam_num):
-            await message.answer(text_to_send)
+            await bot.send_message(chat_id=message.chat.id, text=text_to_send, business_connection_id=message.business_connection_id)
             await asyncio.sleep(1.0)
     finally:
         active_spammers.discard(owner_id)
@@ -208,7 +203,7 @@ async def reg_dot_command(message: Message, bot: Bot):
     args = message.text.split(maxsplit=1)
     
     if len(args) == 1:
-        await message.answer("⚠️ Использование: \n<code>.reg [текст]</code>", parse_mode="HTML")
+        await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text="⚠️ Использование: \n<code>.reg [текст]</code>", parse_mode="HTML", business_connection_id=message.business_connection_id)
         return
 
     text_to_send = ""
@@ -219,7 +214,7 @@ async def reg_dot_command(message: Message, bot: Bot):
         else:
             text_to_send += i.lower()
 
-    await message.answer(text_to_send)
+    await bot.send_message(chat_id=message.chat.id, text=text_to_send, business_connection_id=message.business_connection_id)
     return
 
 
@@ -234,15 +229,15 @@ async def zalgo_dot_command(message: Message, bot: Bot):
     args = message.text.split(maxsplit=1)
     
     if len(args) == 1:
-        await message.answer("⚠️ Использование: \n<code>.zalgo [текст]</code>", parse_mode="HTML")
+        await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text="⚠️ Использование: \n<code>.zalgo [текст]</code>", parse_mode="HTML", business_connection_id=message.business_connection_id)
         return
     if len(args[1]) > 1000:
-        await message.answer("⚠️ Текст слишком длинный! (Максимум 1000 символов)", parse_mode="HTML")
+        await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text="⚠️ Текст слишком длинный! (Максимум 1000 символов)", parse_mode="HTML", business_connection_id=message.business_connection_id)
         return
     text_to_send = ""
     for char in args[1]:
         text_to_send += (char + random.choice(ABOVE_ZALGO_SYMBOLS) + random.choice(BELOW_ZALGO_SYMBOLS))
-    await message.answer(text_to_send)
+    await bot.send_message(chat_id=message.chat.id, text=text_to_send, business_connection_id=message.business_connection_id)
     return
 
 
@@ -255,40 +250,34 @@ async def coin_dot_command(message: Message, bot: Bot):
     :param bot: Экземпляр бота Aiogram.
     """
     if message.text != ".coin":
-        await message.answer(f"⚠️ Для данной команды аргументы не требуются")
+        await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text=f"⚠️ Для данной команды аргументы не требуются", business_connection_id=message.business_connection_id)
         return
     if random.randint(0, 1) == 0:
-        await message.answer(f"Результат подбрасывания:\n\n🦅 Выпал ОРЕЛ!")
+        await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text=f"Результат подбрасывания:\n\n🦅 Выпал ОРЕЛ!", business_connection_id=message.business_connection_id)
     else:
-        await message.answer(f"Результат подбрасывания:\n\n🪙 Выпала РЕШКА!")
+        await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text=f"Результат подбрасывания:\n\n🪙 Выпала РЕШКА!", business_connection_id=message.business_connection_id)
     return
 
 
 # .ai
 async def ai_dot_command(message: Message, bot: Bot):
     """
-    Отправляет запрос к нейросети Groq и возвращает сгенерированный ответ.
+    Отправляет запрос к локальной нейросети и возвращает сгенерированный ответ.
     
     :param message: Объект входящего сообщения Telegram.
     :param bot: Экземпляр бота Aiogram.
     """
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
-        await message.answer(f"⚠️ Для данной команды требуется вопрос")
+        await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text=f"⚠️ Для данной команды требуется вопрос", business_connection_id=message.business_connection_id)
         return
     
-    if len(args[1]) > 200:
-        await message.answer(f"⚠️ Максимальная длина вопроса 200 символов")
-        return
-
     try:
-        answer = await get_answer(args[1])
+        await get_ai_answer(bot, message, args[1])
     except Exception as e:
-        print(f"Ошибка API Groq: {e}")
-        await message.answer("⚠️ Ошибка при обращении к нейросети.")
+        print(f"Ошибка нейросети: {e}")
+        await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text="⚠️ Ошибка при обращении к нейросети.", business_connection_id=message.business_connection_id)
         return
-
-    await message.answer(answer, parse_mode="HTML")
 
 
 # .tt
@@ -301,10 +290,10 @@ async def tt_dot_command(message: Message, bot: Bot):
     """
     args = message.text.split(maxsplit=1)
     if len(args) != 2:
-        await message.answer(f"⚠️ Использование: \n<code>.tt [ссылка на TikTok]</code>", parse_mode="HTML")
+        await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text=f"⚠️ Использование: \n<code>.tt [ссылка на TikTok]</code>", parse_mode="HTML", business_connection_id=message.business_connection_id)
         return
 
-    temp_msg = await message.answer("⏳ Запрашиваю видео из TikTok...")
+    temp_msg = await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text="⏳ Запрашиваю видео из TikTok...", business_connection_id=message.business_connection_id)
     tt_data = await _get_tt_link(args[1])
     if not tt_data:
         try:
@@ -314,7 +303,7 @@ async def tt_dot_command(message: Message, bot: Bot):
         )
         except Exception as e:
             print(f"Ошибка при удалении статусного сообщения: {e}")
-        await message.answer("⚠️ Не удалось получить видео. Проверьте ссылку.")
+        await bot.send_message(chat_id=message.chat.id, text="⚠️ Не удалось получить видео. Проверьте ссылку.", business_connection_id=message.business_connection_id)
         return
 
     tiktok_link, title = tt_data
