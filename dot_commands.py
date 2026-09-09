@@ -273,6 +273,7 @@ async def ai_dot_command(message: Message, bot: Bot):
         return
     
     try:
+        await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text=f"⏳ Запрашиваю ответ нейросети...", business_connection_id=message.business_connection_id)
         await get_ai_answer(bot, message, args[1])
     except Exception as e:
         print(f"Ошибка нейросети: {e}")
