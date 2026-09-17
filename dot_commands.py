@@ -214,7 +214,7 @@ async def reg_dot_command(message: Message, bot: Bot):
         else:
             text_to_send += i.lower()
 
-    await bot.send_message(chat_id=message.chat.id, text=text_to_send, business_connection_id=message.business_connection_id)
+    await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text=text_to_send, business_connection_id=message.business_connection_id)
     return
 
 
@@ -237,7 +237,7 @@ async def zalgo_dot_command(message: Message, bot: Bot):
     text_to_send = ""
     for char in args[1]:
         text_to_send += (char + random.choice(ABOVE_ZALGO_SYMBOLS) + random.choice(BELOW_ZALGO_SYMBOLS))
-    await bot.send_message(chat_id=message.chat.id, text=text_to_send, business_connection_id=message.business_connection_id)
+    await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text=text_to_send, business_connection_id=message.business_connection_id)
     return
 
 
@@ -273,8 +273,9 @@ async def ai_dot_command(message: Message, bot: Bot):
         return
     
     try:
-        await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text=f"⏳ Запрашиваю ответ нейросети...", business_connection_id=message.business_connection_id)
-        await get_ai_answer(bot, message, args[1])
+        # await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text=f"⏳ Запрашиваю ответ нейросети...", business_connection_id=message.business_connection_id)
+        await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text=f"⚠️ Искуственный интелект в отпуске", business_connection_id=message.business_connection_id)
+        # await get_ai_answer(bot, message, args[1])
     except Exception as e:
         print(f"Ошибка нейросети: {e}")
         await bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text="⚠️ Ошибка при обращении к нейросети.", business_connection_id=message.business_connection_id)
